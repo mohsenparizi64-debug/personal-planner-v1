@@ -1,0 +1,279 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========== فونت‌های فارسی ========== */
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap');
+
+/* فونت‌های کلاسیک ایرانی - از CDN محلی یا گوگل */
+@font-face {
+  font-family: 'BNazanin';
+  src: url('https://cdn.fontcdn.ir/Font/Persian/BNazanin/BNazanin.woff2') format('woff2');
+  font-weight: normal;
+}
+@font-face {
+  font-family: 'BNazanin';
+  src: url('https://cdn.fontcdn.ir/Font/Persian/BNazanin/BNazanin-Bold.woff2') format('woff2');
+  font-weight: bold;
+}
+
+/* ========== تم دارک مدرن (پیش‌فرض) ========== */
+.dark-modern {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #1a1a2e;
+  --bg-hover: #25253e;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --border: rgba(255,255,255,0.05);
+  --font-family: 'Vazirmatn', sans-serif;
+  --header-bg: #1a1a2e;
+  --glow: rgba(139, 92, 246, 0.3);
+}
+
+/* ========== تم کلاسیک ایرانی ========== */
+.persian-classic {
+  --bg-primary: #f5f0e8;
+  --bg-secondary: #ede4d3;
+  --bg-card: #faf7f0;
+  --bg-hover: #e8dcc8;
+  --text-primary: #3d2b1f;
+  --text-secondary: #6b5a4e;
+  --accent: #c9a84c;
+  --accent-hover: #b8963e;
+  --border: rgba(139, 109, 69, 0.2);
+  --font-family: 'BNazanin', 'Vazirmatn', serif;
+  --header-bg: #3d2b1f;
+  --glow: rgba(201, 168, 76, 0.3);
+}
+
+/* ========== تم رباتیک دیجیتال ========== */
+.cyber-digital {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #0d0d0d;
+  --bg-hover: #1a1a1a;
+  --text-primary: #00ff88;
+  --text-secondary: #00cc66;
+  --accent: #00ff88;
+  --accent-hover: #00cc66;
+  --border: rgba(0, 255, 136, 0.15);
+  --font-family: 'Vazirmatn', monospace;
+  --header-bg: #0d0d0d;
+  --glow: rgba(0, 255, 136, 0.4);
+}
+
+/* ========== اعمال متغیرها ========== */
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  transition: all 0.4s ease;
+}
+
+/* اسکرول‌بار */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+
+/* انیمیشن */
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== تم کلاسیک: تزئینات ========== */
+.persian-classic .persian-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L55 30 L30 55 L5 30Z' fill='none' stroke='%23c9a84c' stroke-opacity='0.15' stroke-width='1'/%3E%3Ccircle cx='30' cy='30' r='8' fill='%23c9a84c' fill-opacity='0.08'/%3E%3C/svg%3E");
+}
+
+.persian-classic .card-ornament {
+  border: 2px solid var(--border);
+  box-shadow: 0 4px 20px rgba(139, 109, 69, 0.15);
+}
+
+/* ========== تم رباتیک: افکت‌های نئونی ========== */
+.cyber-digital .neon-border {
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2), inset 0 0 10px rgba(0, 255, 136, 0.05);
+}
+
+.cyber-digital .neon-text {
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.cyber-digital .scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.cyber-digital .scanline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(0, 255, 136, 0.1);
+  animation: scan 4s linear infinite;
+}
+
+@keyframes scan {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+/* ========== کامپوننت‌های مشترک ========== */
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 30px var(--glow);
+}
+
+/* ========== المان‌های تزئینی تم کلاسیک ========== */
+.persian-classic .persian-ornament-top {
+  position: relative;
+}
+
+.persian-classic .persian-ornament-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, #c9a84c, transparent);
+}
+
+.persian-classic .persian-border-card {
+  border: 2px solid #c9a84c;
+  border-radius: 16px;
+  box-shadow: 
+    0 0 0 4px #f5f0e8,
+    0 0 0 6px #c9a84c,
+    0 8px 32px rgba(139, 109, 69, 0.2);
+}
+
+/* ========== المان‌های تزئینی تم رباتیک ========== */
+.cyber-digital .circuit-bg {
+  background-image: 
+    linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.cyber-digital .glitch-text {
+  text-shadow: 
+    2px 0 rgba(255, 0, 0, 0.5),
+    -2px 0 rgba(0, 0, 255, 0.5);
+  animation: glitch 0.3s infinite;
+}
+
+@keyframes glitch {
+  0%, 100% { text-shadow: 2px 0 rgba(255,0,0,0.5), -2px 0 rgba(0,0,255,0.5); }
+  50% { text-shadow: -2px 0 rgba(255,0,0,0.5), 2px 0 rgba(0,0,255,0.5); }
+}
+
+/* ========== ذرات متحرک تم رباتیک ========== */
+.cyber-digital .particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cyber-digital .particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #00ff88;
+  border-radius: 50%;
+  animation: float 4s infinite;
+  opacity: 0;
+}
+
+@keyframes float {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100vh) scale(1); opacity: 0; }
+}
+
+/* ========== شِمای مقوایی برای تم کلاسیک ========== */
+.persian-classic .paper-texture {
+  background-image: 
+    repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(139,109,69,0.03) 50px, rgba(139,109,69,0.03) 51px),
+    repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(139,109,69,0.03) 50px, rgba(139,109,69,0.03) 51px);
+}
+/* ========== پس‌زمینه‌های تم کلاسیک ========== */
+.persian-classic .page-bg-dashboard {
+  background: linear-gradient(135deg, #f5f0e8 0%, #ede4d3 50%, #e8dcc8 100%) !important;
+}
+.persian-classic .page-bg-tasks {
+  background: linear-gradient(135deg, #faf7f0 0%, #f0e6d3 50%, #e8dcc8 100%) !important;
+}
+
+/* ========== پس‌زمینه‌های تم رباتیک ========== */
+.cyber-digital .page-bg-dashboard {
+  background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 50%, #0a0a0a 100%) !important;
+}
+.cyber-digital .page-bg-tasks {
+  background: linear-gradient(135deg, #0d1117 0%, #0a0a0a 50%, #111111 100%) !important;
+}
+
+/* ========== المان‌های تزئینی ========== */
+.persian-classic .persian-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L55 30 L30 55 L5 30Z' fill='none' stroke='%23c9a84c' stroke-opacity='0.15' stroke-width='1'/%3E%3Ccircle cx='30' cy='30' r='8' fill='%23c9a84c' fill-opacity='0.08'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.cyber-digital .scanline {
+  position: relative;
+  overflow: hidden;
+}
+.cyber-digital .scanline::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: rgba(0, 255, 136, 0.1);
+  animation: scan 4s linear infinite;
+}
+@keyframes scan {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+.cyber-digital .particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.cyber-digital .particle {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: #00ff88;
+  border-radius: 50%;
+  animation: float 4s infinite;
+  opacity: 0;
+}
+@keyframes float {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100vh) scale(1); opacity: 0; }
+}
