@@ -1,5 +1,5 @@
-    import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
 
 export const useThemeStore = defineStore('theme', () => {
   const currentTheme = ref(localStorage.getItem('theme') || 'dark-modern')
@@ -8,6 +8,7 @@ export const useThemeStore = defineStore('theme', () => {
     { id: 'dark-modern', label: 'مدرن تاریک', icon: '🌙' },
     { id: 'persian-classic', label: 'کلاسیک ایرانی', icon: '🏛️' },
     { id: 'cyber-digital', label: 'رباتیک دیجیتال', icon: '🤖' },
+    { id: 'gemini-theme', label: 'جمنای هوش مصنوعی', icon: '✨' },
   ]
 
   function setTheme(themeId) {

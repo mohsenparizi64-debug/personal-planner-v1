@@ -11,6 +11,7 @@ const showForm = ref(false)
 const showLogs = ref(false)
 const editingGoal = ref(null)
 const isLoading = ref(false)
+const validationErrors = ref({})
 
 const form = ref({
   title: '',
@@ -52,6 +53,7 @@ const resetForm = () => {
     priority: 0, success_criteria: ''
   }
   editingGoal.value = null
+  validationErrors.value = {}
 }
 
 const openNewForm = () => {
@@ -72,24 +74,56 @@ const openEditForm = (goal) => {
     success_criteria: goal.success_criteria || ''
   }
   editingGoal.value = goal
+  validationErrors.value = {}
   showForm.value = true
 }
 
 const saveGoal = async () => {
-  if (!form.value.title.trim()) return
+  // پاک کردن خطاهای قبلی
+  validationErrors.value = {}
+  
+  // اعتبارسنجی
+  let hasError = false
+  
+  if (!form.value.title || !form.value.title.trim()) {
+    validationErrors.value.title = 'عنوان هدف اجباری است'
+    hasError = true
+  }
+  
+  if (form.value.start_date && form.value.target_date) {
+    if (new Date(form.value.target_date) < new Date(form.value.start_date)) {
+      validationErrors.value.target_date = 'تاریخ تحقق نمی‌تواند قبل از تاریخ تعریف باشد'
+      hasError = true
+    }
+  }
+  
+  if (hasError) {
+    showToast('⚠️ لطفاً خطاهای فرم را برطرف کنید', 'error')
+    return
+  }
+  
   isLoading.value = true
   try {
     if (editingGoal.value) {
       await api.put(`/goals/${editingGoal.value.id}`, form.value)
+      showToast('✅ هدف با موفقیت بروزرسانی شد')
     } else {
       await api.post('/goals', form.value)
+      showToast('✅ هدف جدید با موفقیت ایجاد شد')
     }
     showForm.value = false
     resetForm()
     await fetchGoals()
     await fetchLogs()
   } catch (error) {
-    console.error('خطا در ذخیره هدف', error)
+    const detail = error.response?.data?.detail
+    if (error.response?.status === 422) {
+      showToast('⚠️ لطفاً اطلاعات را کامل و صحیح وارد کنید', 'error')
+    } else if (detail) {
+      showToast('❌ ' + detail, 'error')
+    } else {
+      showToast('❌ خطا در ذخیره هدف', 'error')
+    }
   } finally {
     isLoading.value = false
   }
@@ -101,6 +135,7 @@ const deleteGoal = async (goalId) => {
     await api.delete(`/goals/${goalId}`)
     await fetchGoals()
     await fetchLogs()
+    showToast('🗑️ هدف حذف شد')
   } catch (error) {
     console.error('خطا در حذف هدف', error)
   }
@@ -112,10 +147,21 @@ const resetAllGoals = async () => {
     await api.delete('/goals/all/reset')
     await fetchGoals()
     await fetchLogs()
+    showToast('🗑️ همه اهداف حذف شدند')
   } catch (error) {
     console.error('خطا در حذف همه اهداف', error)
   }
 }
+
+const showToast = (msg, type = 'success') => {
+  // استفاده از message در template
+  message.value = msg
+  messageType.value = type
+  setTimeout(() => { message.value = '' }, 3000)
+}
+
+const message = ref('')
+const messageType = ref('success')
 
 onMounted(() => {
   fetchGoals()
@@ -136,10 +182,17 @@ onMounted(() => {
       <div v-for="i in 15" :key="i" class="particle" :style="{ left: Math.random() * 100 + '%', animationDelay: Math.random() * 4 + 's' }"></div>
     </div>
 
+    <!-- Toast Message -->
+    <div v-if="message" 
+         class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl text-white font-semibold transition-all duration-300"
+         :style="{ background: messageType === 'error' ? '#ef4444' : 'var(--accent)' }">
+      {{ message }}
+    </div>
+
     <!-- Header -->
     <div class="flex items-center justify-between mb-6 relative">
       <div>
-        <h1 class="text-3xl font-extrabold" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''">اهداف کلان</h1>
+        <h1 class="text-3xl font-extrabold" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''" :style="{ color: 'var(--text-primary)' }">اهداف کلان</h1>
         <p :style="{ color: 'var(--text-secondary)' }">مسیر موفقیتت رو مشخص کن</p>
       </div>
       <div class="flex gap-3">
@@ -176,7 +229,6 @@ onMounted(() => {
              class="flex items-start gap-3 p-3 rounded-xl transition"
              :style="{ background: 'var(--bg-hover)' }">
           
-          <!-- آیکون بر اساس نوع عملیات -->
           <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                :style="{ 
                  background: log.action === 'created' ? 'rgba(34,197,94,0.2)' : 
@@ -211,7 +263,7 @@ onMounted(() => {
     </div>
 
     <!-- Form Modal -->
-    <div v-if="showForm" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div v-if="showForm" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div class="w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
            :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
         
@@ -223,11 +275,19 @@ onMounted(() => {
         </div>
 
         <div class="space-y-4">
+          <!-- عنوان -->
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">عنوان هدف کلان *</label>
+            <label class="block text-sm mb-1" :style="{ color: validationErrors.title ? '#ef4444' : 'var(--text-secondary)' }">
+              عنوان هدف کلان * {{ validationErrors.title ? '⚠️' : '' }}
+            </label>
             <input v-model="form.title" type="text" placeholder="مثلاً: راه‌اندازی کسب‌وکار آنلاین"
                    class="w-full px-4 py-3 rounded-xl transition text-right"
-                   :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+                   :style="{ 
+                     background: 'var(--bg-primary)', 
+                     border: validationErrors.title ? '2px solid #ef4444' : '1px solid var(--border)', 
+                     color: 'var(--text-primary)' 
+                   }" />
+            <p v-if="validationErrors.title" class="text-red-400 text-xs mt-1 mr-1">{{ validationErrors.title }}</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -238,10 +298,17 @@ onMounted(() => {
                      :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
             </div>
             <div>
-              <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ تحقق هدف</label>
+              <label class="block text-sm mb-1" :style="{ color: validationErrors.target_date ? '#ef4444' : 'var(--text-secondary)' }">
+                تاریخ تحقق هدف {{ validationErrors.target_date ? '⚠️' : '' }}
+              </label>
               <input v-model="form.target_date" type="date"
                      class="w-full px-4 py-3 rounded-xl transition text-right"
-                     :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+                     :style="{ 
+                       background: 'var(--bg-primary)', 
+                       border: validationErrors.target_date ? '2px solid #ef4444' : '1px solid var(--border)', 
+                       color: 'var(--text-primary)' 
+                     }" />
+              <p v-if="validationErrors.target_date" class="text-red-400 text-xs mt-1 mr-1">{{ validationErrors.target_date }}</p>
             </div>
           </div>
 

@@ -1,11 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ========== فونت‌های فارسی ========== */
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap');
 
-/* فونت‌های کلاسیک ایرانی - از CDN محلی یا گوگل */
+/* فونت‌های کلاسیک ایرانی */
 @font-face {
   font-family: 'BNazanin';
   src: url('https://cdn.fontcdn.ir/Font/Persian/BNazanin/BNazanin.woff2') format('woff2');
@@ -17,97 +18,150 @@
   font-weight: bold;
 }
 
-/* ========== تم دارک مدرن (پیش‌فرض) ========== */
+/* ========== تم دارک مدرن (AI 2026 Edition) ========== */
 .dark-modern {
-  --bg-primary: #0f0f1a;
-  --bg-secondary: #1a1a2e;
-  --bg-card: #1a1a2e;
-  --bg-hover: #25253e;
-  --text-primary: #e2e8f0;
+  --bg-primary: #07070e;
+  --bg-secondary: #0f0f1d;
+  --bg-card: rgba(22, 22, 38, 0.75);
+  --bg-hover: #1e1e36;
+  --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --accent: #8b5cf6;
   --accent-hover: #7c3aed;
-  --border: rgba(255,255,255,0.05);
+  --border: rgba(139, 92, 246, 0.15);
   --font-family: 'Vazirmatn', sans-serif;
-  --header-bg: #1a1a2e;
-  --glow: rgba(139, 92, 246, 0.3);
+  --header-bg: rgba(15, 15, 29, 0.85);
+  --glow: rgba(139, 92, 246, 0.35);
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
-/* ========== تم کلاسیک ایرانی ========== */
+/* ========== تم کلاسیک ایرانی (Royal Persian) ========== */
 .persian-classic {
-  --bg-primary: #f5f0e8;
-  --bg-secondary: #ede4d3;
-  --bg-card: #faf7f0;
-  --bg-hover: #e8dcc8;
-  --text-primary: #3d2b1f;
-  --text-secondary: #6b5a4e;
-  --accent: #c9a84c;
-  --accent-hover: #b8963e;
-  --border: rgba(139, 109, 69, 0.2);
+  --bg-primary: #f7f2ea;
+  --bg-secondary: #eee4d0;
+  --bg-card: rgba(253, 250, 245, 0.85);
+  --bg-hover: #e5d5bc;
+  --text-primary: #2c1d11;
+  --text-secondary: #5c4738;
+  --accent: #b8973e;
+  --accent-hover: #a18131;
+  --border: rgba(184, 151, 62, 0.25);
   --font-family: 'BNazanin', 'Vazirmatn', serif;
-  --header-bg: #3d2b1f;
-  --glow: rgba(201, 168, 76, 0.3);
+  --header-bg: rgba(238, 228, 208, 0.9);
+  --glow: rgba(184, 151, 62, 0.25);
+  --card-shadow: 0 6px 24px rgba(120, 90, 50, 0.12);
 }
 
-/* ========== تم رباتیک دیجیتال ========== */
+/* ========== تم رباتیک دیجیتال (Cyber Matrix 2026) ========== */
 .cyber-digital {
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #111111;
-  --bg-card: #0d0d0d;
-  --bg-hover: #1a1a1a;
+  --bg-primary: #030705;
+  --bg-secondary: #07110d;
+  --bg-card: rgba(5, 20, 13, 0.8);
+  --bg-hover: #0a261a;
   --text-primary: #00ff88;
-  --text-secondary: #00cc66;
+  --text-secondary: #00b359;
   --accent: #00ff88;
   --accent-hover: #00cc66;
-  --border: rgba(0, 255, 136, 0.15);
+  --border: rgba(0, 255, 136, 0.3);
   --font-family: 'Vazirmatn', monospace;
-  --header-bg: #0d0d0d;
-  --glow: rgba(0, 255, 136, 0.4);
+  --header-bg: rgba(7, 17, 13, 0.9);
+  --glow: rgba(0, 255, 136, 0.45);
+  --card-shadow: 0 0 25px rgba(0, 255, 136, 0.15);
 }
 
-/* ========== اعمال متغیرها ========== */
+/* ========== تم اختصاصی جمنای (Gemini AI 2026 Ultimate Edition) ========== */
+.gemini-theme {
+  --bg-primary: #05070f;
+  --bg-secondary: #0b0f19;
+  --bg-card: rgba(13, 18, 32, 0.75);
+  --bg-hover: #172138;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent: #4285f4;
+  --accent-hover: #1a73e8;
+  --border: rgba(66, 133, 244, 0.25);
+  --font-family: 'Vazirmatn', sans-serif;
+  --header-bg: rgba(11, 15, 25, 0.85);
+  --glow: rgba(66, 133, 244, 0.45);
+  --card-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* اعمال مستقیم پس‌زمینه کهکشانی جمنای روی ریشه برنامه و بدنه */
+.flex.h-screen.relative.gemini-theme {
+  background-color: #05070f !important;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(66, 133, 244, 0.4) 0%, transparent 50%),
+    radial-gradient(circle at 85% 80%, rgba(168, 85, 247, 0.35) 0%, transparent 50%),
+    linear-gradient(135deg, #05070f 0%, #0b0f19 100%) !important;
+  background-attachment: fixed !important;
+}
+
+body:has(.gemini-theme) {
+  background-color: #05070f !important;
+}
+
+/* ========== اعمال متغیرها و پایه ========== */
 body {
   margin: 0;
-  background: var(--bg-primary);
+  background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-family);
-  transition: all 0.4s ease;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  overflow-x: hidden;
 }
 
-/* اسکرول‌بار */
-::-webkit-scrollbar { width: 6px; }
+/* اسکرول‌بار مدرن */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-secondary); }
-::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-hover); }
 
-/* انیمیشن */
+/* انیمیشن عمومی */
 .fade-in {
-  animation: fadeIn 0.5s ease-in-out;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ========== تم کلاسیک: تزئینات ========== */
+/* ========== کامپوننت‌های شیشه‌ای پیشرفته (Glassmorphism AI 2026) ========== */
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: var(--card-shadow);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 136, 0.2), transparent);
+  opacity: 0.5;
+}
+
+.glass-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 35px var(--glow), var(--card-shadow);
+  transform: translateY(-2px);
+}
+
+/* ========== تم کلاسیک: تزئینات و بافت فاخر ========== */
 .persian-classic .persian-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L55 30 L30 55 L5 30Z' fill='none' stroke='%23c9a84c' stroke-opacity='0.15' stroke-width='1'/%3E%3Ccircle cx='30' cy='30' r='8' fill='%23c9a84c' fill-opacity='0.08'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L55 30 L30 55 L5 30Z' fill='none' stroke='%23b8973e' stroke-opacity='0.12' stroke-width='1'/%3E%3Ccircle cx='30' cy='30' r='6' fill='%23b8973e' fill-opacity='0.08'/%3E%3C/svg%3E");
+  pointer-events: none;
 }
 
-.persian-classic .card-ornament {
-  border: 2px solid var(--border);
-  box-shadow: 0 4px 20px rgba(139, 109, 69, 0.15);
-}
-
-/* ========== تم رباتیک: افکت‌های نئونی ========== */
-.cyber-digital .neon-border {
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2), inset 0 0 10px rgba(0, 255, 136, 0.05);
-}
-
-.cyber-digital .neon-text {
-  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
-}
-
+/* ========== تم رباتیک: افکت‌های نئونی و اسکنلاین ========== */
 .cyber-digital .scanline {
   position: relative;
   overflow: hidden;
@@ -116,78 +170,19 @@ body {
 .cyber-digital .scanline::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 2px;
-  background: rgba(0, 255, 136, 0.1);
-  animation: scan 4s linear infinite;
+  background: rgba(0, 255, 136, 0.25);
+  box-shadow: 0 0 8px #00ff88;
+  animation: scan 5s linear infinite;
+  pointer-events: none;
 }
 
 @keyframes scan {
-  0% { top: 0; }
-  100% { top: 100%; }
+  0% { top: -10%; }
+  100% { top: 110%; }
 }
 
-/* ========== کامپوننت‌های مشترک ========== */
-.glass-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  transition: all 0.3s ease;
-}
-
-.glass-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 30px var(--glow);
-}
-
-/* ========== المان‌های تزئینی تم کلاسیک ========== */
-.persian-classic .persian-ornament-top {
-  position: relative;
-}
-
-.persian-classic .persian-ornament-top::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 200px;
-  height: 4px;
-  background: linear-gradient(90deg, transparent, #c9a84c, transparent);
-}
-
-.persian-classic .persian-border-card {
-  border: 2px solid #c9a84c;
-  border-radius: 16px;
-  box-shadow: 
-    0 0 0 4px #f5f0e8,
-    0 0 0 6px #c9a84c,
-    0 8px 32px rgba(139, 109, 69, 0.2);
-}
-
-/* ========== المان‌های تزئینی تم رباتیک ========== */
-.cyber-digital .circuit-bg {
-  background-image: 
-    linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-.cyber-digital .glitch-text {
-  text-shadow: 
-    2px 0 rgba(255, 0, 0, 0.5),
-    -2px 0 rgba(0, 0, 255, 0.5);
-  animation: glitch 0.3s infinite;
-}
-
-@keyframes glitch {
-  0%, 100% { text-shadow: 2px 0 rgba(255,0,0,0.5), -2px 0 rgba(0,0,255,0.5); }
-  50% { text-shadow: -2px 0 rgba(255,0,0,0.5), 2px 0 rgba(0,0,255,0.5); }
-}
-
-/* ========== ذرات متحرک تم رباتیک ========== */
 .cyber-digital .particles {
   position: fixed;
   inset: 0;
@@ -201,79 +196,14 @@ body {
   height: 2px;
   background: #00ff88;
   border-radius: 50%;
-  animation: float 4s infinite;
+  box-shadow: 0 0 6px #00ff88;
+  animation: floatParticle 5s infinite linear;
   opacity: 0;
 }
 
-@keyframes float {
-  0% { transform: translateY(100vh) scale(0); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(-100vh) scale(1); opacity: 0; }
-}
-
-/* ========== شِمای مقوایی برای تم کلاسیک ========== */
-.persian-classic .paper-texture {
-  background-image: 
-    repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(139,109,69,0.03) 50px, rgba(139,109,69,0.03) 51px),
-    repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(139,109,69,0.03) 50px, rgba(139,109,69,0.03) 51px);
-}
-/* ========== پس‌زمینه‌های تم کلاسیک ========== */
-.persian-classic .page-bg-dashboard {
-  background: linear-gradient(135deg, #f5f0e8 0%, #ede4d3 50%, #e8dcc8 100%) !important;
-}
-.persian-classic .page-bg-tasks {
-  background: linear-gradient(135deg, #faf7f0 0%, #f0e6d3 50%, #e8dcc8 100%) !important;
-}
-
-/* ========== پس‌زمینه‌های تم رباتیک ========== */
-.cyber-digital .page-bg-dashboard {
-  background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 50%, #0a0a0a 100%) !important;
-}
-.cyber-digital .page-bg-tasks {
-  background: linear-gradient(135deg, #0d1117 0%, #0a0a0a 50%, #111111 100%) !important;
-}
-
-/* ========== المان‌های تزئینی ========== */
-.persian-classic .persian-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L55 30 L30 55 L5 30Z' fill='none' stroke='%23c9a84c' stroke-opacity='0.15' stroke-width='1'/%3E%3Ccircle cx='30' cy='30' r='8' fill='%23c9a84c' fill-opacity='0.08'/%3E%3C/svg%3E");
-  pointer-events: none;
-}
-
-.cyber-digital .scanline {
-  position: relative;
-  overflow: hidden;
-}
-.cyber-digital .scanline::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: rgba(0, 255, 136, 0.1);
-  animation: scan 4s linear infinite;
-}
-@keyframes scan {
-  0% { top: 0; }
-  100% { top: 100%; }
-}
-
-.cyber-digital .particles {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-.cyber-digital .particle {
-  position: absolute;
-  width: 2px; height: 2px;
-  background: #00ff88;
-  border-radius: 50%;
-  animation: float 4s infinite;
-  opacity: 0;
-}
-@keyframes float {
-  0% { transform: translateY(100vh) scale(0); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(-100vh) scale(1); opacity: 0; }
+@keyframes floatParticle {
+  0% { transform: translateY(105vh) scale(0); opacity: 0; }
+  15% { opacity: 0.8; }
+  85% { opacity: 0.8; }
+  100% { transform: translateY(-5vh) scale(1.2); opacity: 0; }
 }

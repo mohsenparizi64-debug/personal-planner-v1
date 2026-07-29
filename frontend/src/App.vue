@@ -67,15 +67,15 @@ const cancelLogout = () => {
 </script>
 
 <template>
-  <div class="flex h-screen" :class="[themeStore.currentTheme]">
+  <div class="flex h-screen relative" :class="[themeStore.currentTheme]">
     <!-- Mobile overlay -->
     <div v-if="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-black/50 z-40 lg:hidden"></div>
 
     <!-- Sidebar -->
     <aside 
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-      class="fixed lg:static inset-y-0 right-0 w-64 z-50 transition-transform duration-300 lg:translate-x-0 flex flex-col"
-      :style="{ background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }"
+      class="fixed lg:static inset-y-0 right-0 w-64 z-50 transition-transform duration-300 lg:translate-x-0 flex flex-col glass-card"
+      :style="{ borderLeft: '1px solid var(--border)', borderRadius: '0px' }"
     >
       <!-- Logo -->
       <div class="p-6 border-b" :style="{ borderColor: 'var(--border)' }">
@@ -91,14 +91,14 @@ const cancelLogout = () => {
       </div>
 
       <!-- Menu -->
-      <nav class="flex-1 p-4 space-y-1">
+      <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
         <router-link 
           v-for="item in menuItems" 
           :key="item.path"
           :to="item.path"
           @click="sidebarOpen = false"
           class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
-          :style="route.path === item.path ? { background: 'var(--accent)', color: '#fff' } : { color: 'var(--text-secondary)' }"
+          :style="route.path === item.path ? { background: 'var(--accent)', color: '#fff', boxShadow: '0 0 15px var(--glow)' } : { color: 'var(--text-secondary)' }"
         >
           <component :is="item.icon" class="w-5 h-5" />
           <span class="font-medium">{{ item.label }}</span>
@@ -138,7 +138,7 @@ const cancelLogout = () => {
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-auto" style="background: var(--bg-primary)">
+    <main class="flex-1 overflow-auto relative z-10" style="background: transparent;">
       
       <!-- Header Bar -->
       <header class="sticky top-0 z-30 backdrop-blur-lg border-b" :style="{ background: 'var(--header-bg)', borderColor: 'var(--border)' }">
@@ -174,7 +174,7 @@ const cancelLogout = () => {
       </header>
 
       <!-- Page Content -->
-      <div class="fade-in relative" :style="{ minHeight: 'calc(100vh - 60px)' }">
+      <div class="fade-in relative p-6" :style="{ minHeight: 'calc(100vh - 60px)' }">
         <div v-if="themeStore.currentTheme === 'persian-classic'" class="absolute inset-0 persian-pattern opacity-30 pointer-events-none"></div>
         <div v-if="themeStore.currentTheme === 'cyber-digital'" class="absolute inset-0 pointer-events-none">
           <div class="scanline absolute inset-0"></div>
