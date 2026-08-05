@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import date, datetime
 from typing import Optional, List
 
@@ -9,13 +9,25 @@ class SubGoalTaskBase(BaseModel):
     due_date: Optional[date] = None
 
 class SubGoalTaskCreate(SubGoalTaskBase):
-    pass
+    @field_validator("due_date", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, value):
+        if value == "":
+            return None
+        return value
 
 class SubGoalTaskUpdate(BaseModel):
     title: Optional[str] = None
     is_completed: Optional[bool] = None
     priority: Optional[int] = None
     due_date: Optional[date] = None
+
+    @field_validator("due_date", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, value):
+        if value == "":
+            return None
+        return value
 
 class SubGoalTaskRead(SubGoalTaskBase):
     id: int

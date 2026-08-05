@@ -1,18 +1,62 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from app.models.all_models import SubGoal, SubGoalTask, KPI
+from app.models.all_models import SubGoal, SubGoalTask, KPI, Task
 from app.schemas.sub_goal import SubGoalCreate, SubGoalUpdate, SubGoalTaskCreate, SubGoalTaskUpdate
 from app.schemas.kpi import KPICreate, KPIUpdate
 from datetime import datetime
 
+async def _attach_sub_goal_tasks(db: AsyncSession, sub_goal: SubGoal, owner_id: int):
+    subgoal_tasks_result = await db.execute(select(SubGoalTask).where(SubGoalTask.sub_goal_id == sub_goal.id, SubGoalTask.owner_id == owner_id))
+    subgoal_tasks = list(subgoal_tasks_result.scalars().all())
+
+    main_tasks_result = await db.execute(select(Task).where(Task.sub_goal_id == sub_goal.id, Task.owner_id == owner_id))
+    main_tasks = list(main_tasks_result.scalars().all())
+
+    merged_tasks = []
+    for task in subgoal_tasks:
+        merged_tasks.append({
+            "id": task.id,
+            "title": task.title,
+            "is_completed": task.is_completed,
+            "priority": task.priority,
+            "due_date": task.due_date,
+            "sub_goal_id": sub_goal.id,
+            "owner_id": owner_id,
+            "created_at": task.created_at,
+            "source": "subgoal_task",
+        })
+
+    for task in main_tasks:
+        merged_tasks.append({
+            "id": task.id,
+            "title": task.title,
+            "is_completed": task.is_completed,
+            "priority": task.priority,
+            "due_date": task.due_date,
+            "sub_goal_id": sub_goal.id,
+            "owner_id": owner_id,
+            "created_at": task.created_at,
+            "source": "main_task",
+        })
+
+    merged_tasks.sort(key=lambda item: (not item["is_completed"], item["priority"], item["created_at"] or datetime.min))
+    sub_goal.tasks = merged_tasks
+    return sub_goal
+
 async def get_sub_goal_by_id(db: AsyncSession, sub_goal_id: int, owner_id: int):
-    result = await db.execute(select(SubGoal).where(SubGoal.id == sub_goal_id, SubGoal.owner_id == owner_id).options(selectinload(SubGoal.tasks)))
-    return result.scalar_one_or_none()
+    result = await db.execute(select(SubGoal).where(SubGoal.id == sub_goal_id, SubGoal.owner_id == owner_id).options(selectinload(SubGoal.sub_goal_tasks), selectinload(SubGoal.linked_tasks)))
+    sub_goal = result.scalar_one_or_none()
+    if not sub_goal:
+        return None
+    return await _attach_sub_goal_tasks(db, sub_goal, owner_id)
 
 async def get_sub_goals(db: AsyncSession, goal_id: int, owner_id: int):
-    result = await db.execute(select(SubGoal).where(SubGoal.goal_id == goal_id, SubGoal.owner_id == owner_id).options(selectinload(SubGoal.tasks)).order_by(SubGoal.order_index))
-    return list(result.scalars().all())
+    result = await db.execute(select(SubGoal).where(SubGoal.goal_id == goal_id, SubGoal.owner_id == owner_id).options(selectinload(SubGoal.sub_goal_tasks), selectinload(SubGoal.linked_tasks)).order_by(SubGoal.order_index))
+    sub_goals = list(result.scalars().all())
+    for sub_goal in sub_goals:
+        await _attach_sub_goal_tasks(db, sub_goal, owner_id)
+    return sub_goals
 
 async def create_sub_goal(db: AsyncSession, sub_goal: SubGoalCreate, goal_id: int, owner_id: int):
     db_sub = SubGoal(**sub_goal.model_dump(), goal_id=goal_id, owner_id=owner_id)

@@ -13,8 +13,7 @@ class User(Base, TimestampMixin):
     bio = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     reset_token = Column(String, nullable=True)
-    reset_token_expires = Column(DateTime, nullable=True) 
-
+    reset_token_expires = Column(DateTime, nullable=True)
 
 class Task(Base, TimestampMixin):
     __tablename__ = "tasks"
@@ -23,6 +22,7 @@ class Task(Base, TimestampMixin):
     description = Column(Text, nullable=True)
     register_date = Column(Date, nullable=True)
     due_date = Column(Date, nullable=True)
+    duration_days = Column(Integer, nullable=True)
     category = Column(String, nullable=True)
     sub_goal_id = Column(Integer, ForeignKey("sub_goals.id", ondelete="SET NULL"), nullable=True)
     goal_id = Column(Integer, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
@@ -35,7 +35,7 @@ class Task(Base, TimestampMixin):
     is_completed = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User")
-    sub_goal = relationship("SubGoal", backref="linked_tasks")
+    sub_goal = relationship("SubGoal", backref="task_links")
     goal = relationship("Goal", backref="linked_tasks")
 
 class Goal(Base, TimestampMixin):
@@ -80,6 +80,8 @@ class SubGoal(Base, TimestampMixin):
     order_index = Column(Integer, default=0)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     goal = relationship("Goal", backref="sub_goals")
+    sub_goal_tasks = relationship("SubGoalTask", back_populates="sub_goal", cascade="all, delete-orphan")
+    linked_tasks = relationship("Task", back_populates="sub_goal", cascade="all, delete-orphan")
 
 class SubGoalTask(Base, TimestampMixin):
     __tablename__ = "sub_goal_tasks"
@@ -90,7 +92,7 @@ class SubGoalTask(Base, TimestampMixin):
     priority = Column(Integer, default=0)
     due_date = Column(Date, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    sub_goal = relationship("SubGoal", backref="tasks")
+    sub_goal = relationship("SubGoal", back_populates="sub_goal_tasks")
 
 class KPI(Base, TimestampMixin):
     __tablename__ = "kpis"
@@ -134,10 +136,10 @@ class Movie(Base, TimestampMixin):
     __tablename__ = "movies"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
-    category = Column(String, nullable=True)  # action, comedy, drama, horror, sci-fi, animation, documentary, other
+    category = Column(String, nullable=True)
     register_date = Column(Date, nullable=True)
     watch_date = Column(Date, nullable=True)
-    rating = Column(Integer, default=0)  # 1 to 10
+    rating = Column(Integer, default=0)
     notes = Column(Text, nullable=True)
     is_watched = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -167,7 +169,7 @@ class Place(Base, TimestampMixin):
     register_date = Column(Date, nullable=True)
     is_visited = Column(Boolean, default=False)
     visit_date = Column(Date, nullable=True)
-    rating = Column(Integer, default=0)  # 1 to 5
+    rating = Column(Integer, default=0)
     notes = Column(Text, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
