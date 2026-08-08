@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { X, AlertCircle } from 'lucide-vue-next'
+import DateInputPersian from './DateInputPersian.vue'  // کمپوننت تاریخ هوشمند
+import { toShamsiDisplay, toGregorianISO } from '../utils/date'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -17,7 +19,6 @@ const emit = defineEmits(['update:modelValue', 'update:form', 'save', 'goal-chan
 
 const priorityLabels = { 0: 'عادی', 1: 'مهم', 2: 'اضطراری' }
 const statusLabels = { not_started: 'شروع نشده', in_progress: 'در حال انجام', completed: 'تکمیل', on_hold: 'متوقف', cancelled: 'لغو شده' }
-const recurrenceLabels = { none: 'بدون تکرار', daily: 'روزانه', weekly: 'هفتگی', monthly: 'ماهانه', yearly: 'سالیانه' }
 
 const formValue = computed({
   get: () => props.form,
@@ -26,11 +27,15 @@ const formValue = computed({
 
 const validationErrors = computed(() => props.validationErrors)
 
-const suggestedDueDate = () => {
+// محاسبه تاریخ پیشنهادی به شکل میلادی
+const suggestedDueDateGreg = () => {
   const f = formValue.value
   if (f.recurrence_type && f.recurrence_type !== 'none' && f.last_action_date) {
     const last = new Date(f.last_action_date)
-    const days = f.recurrence_type === 'daily' ? f.recurrence_interval : f.recurrence_type === 'weekly' ? f.recurrence_interval * 7 : f.recurrence_type === 'monthly' ? f.recurrence_interval * 30 : f.recurrence_interval * 365
+    const days = f.recurrence_type === 'daily' ? f.recurrence_interval
+      : f.recurrence_type === 'weekly' ? f.recurrence_interval * 7
+      : f.recurrence_type === 'monthly' ? f.recurrence_interval * 30
+      : f.recurrence_interval * 365
     last.setDate(last.getDate() + days)
     return last.toISOString().split('T')[0]
   } else if (f.duration_days && f.register_date) {
@@ -39,6 +44,12 @@ const suggestedDueDate = () => {
     return reg.toISOString().split('T')[0]
   }
   return null
+}
+
+// نمایش به شمسی برای کاربر
+const suggestedDueDate = () => {
+  const g = suggestedDueDateGreg()
+  return g ? toShamsiDisplay(g) : '--'
 }
 
 const close = () => emit('update:modelValue', false)
@@ -69,7 +80,7 @@ const onGoalChange = () => emit('goal-change')
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ ثبت</label>
-            <input v-model="formValue.register_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="formValue.register_date" placeholder="تاریخ ثبت" />
           </div>
           <div>
             <label class="block text-sm mb-1" :style="{ color: validationErrors.duration_days ? '#ef4444' : 'var(--text-secondary)' }">مدت زمان (روز)</label>
@@ -121,7 +132,7 @@ const onGoalChange = () => emit('goal-change')
           </div>
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ آخرین اقدام</label>
-            <input v-model="formValue.last_action_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="formValue.last_action_date" placeholder="تاریخ آخرین اقدام" />
           </div>
         </div>
 
@@ -141,7 +152,7 @@ const onGoalChange = () => emit('goal-change')
             </div>
             <div v-if="formValue.recurrence_type !== 'none'">
               <label class="block text-xs mb-1" :style="{ color: 'var(--text-secondary)' }">پایان تکرار</label>
-              <input v-model="formValue.recurrence_end_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+              <DateInputPersian v-model="formValue.recurrence_end_date" placeholder="پایان تکرار" />
             </div>
           </div>
         </div>

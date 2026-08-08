@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { Plus, Trash2, Edit3, X, Wallet, CreditCard, Banknote, TrendingUp, TrendingDown, Calendar, ArrowUp, ArrowDown } from 'lucide-vue-next'
 import api from '@/services/api'
+import DateInputPersian from '@/components/DateInputPersian.vue'
+import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
 const accounts = ref([])
@@ -85,7 +87,6 @@ const saveTransaction = async () => {
     await fetchAccounts()
   } catch (e) { showToast('❌ خطا', 'error') }
 }
-
 
 const deleteTransaction = async (transId) => {
   if (!confirm('حذف تراکنش؟')) return
@@ -199,7 +200,7 @@ onMounted(fetchAccounts)
                 </div>
                 <div>
                   <p :style="{ color: 'var(--text-primary)' }">{{ trans.description || (trans.transaction_type === 'deposit' ? 'واریز' : 'برداشت') }}</p>
-                  <p class="text-xs" :style="{ color: 'var(--text-secondary)' }">{{ trans.transaction_date }}</p>
+                  <p class="text-xs" :style="{ color: 'var(--text-secondary)' }">{{ formatDate(trans.transaction_date) }}</p>
                 </div>
               </div>
               <div class="flex items-center gap-4">
@@ -229,7 +230,7 @@ onMounted(fetchAccounts)
         <div class="space-y-3">
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۱- تاریخ ثبت</label>
-            <input v-model="accountForm.register_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="accountForm.register_date" placeholder="تاریخ ثبت" />
           </div>
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۲- نام حساب *</label>
@@ -268,7 +269,7 @@ onMounted(fetchAccounts)
         <div class="space-y-3">
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۱- تاریخ تراکنش</label>
-            <input v-model="transactionForm.transaction_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="transactionForm.transaction_date" placeholder="تاریخ تراکنش" />
           </div>
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۲- نوع تراکنش</label>

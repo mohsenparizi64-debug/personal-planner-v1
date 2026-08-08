@@ -1,0 +1,11 @@
+models:
+  - name: Qwen 3 Coder (OpenRouter)
+    provider: openai
+    model: qwen/qwen3-coder:free
+    apiKey: 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
+    apiBase: https://openrouter.ai/api/v1
+    roles:
+      - chat
+      - edit
+      - apply
+      - autocomplete

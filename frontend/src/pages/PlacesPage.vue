@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { Plus, Trash2, Edit3, X, MapPin, Star, Calendar, Eye, EyeOff, ChevronDown, ChevronUp, Search, Heart } from 'lucide-vue-next'
 import api from '@/services/api'
+import DateInputPersian from '@/components/DateInputPersian.vue'
+import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
 const places = ref([])
@@ -197,8 +199,8 @@ onMounted(() => { fetchPlaces(); fetchCategories() })
           <div class="grid grid-cols-2 gap-3 mt-3 text-sm">
             <div><span :style="{ color: 'var(--text-secondary)' }">آدرس:</span> <span :style="{ color: 'var(--text-primary)' }">{{ place.address || '-' }}</span></div>
             <div><span :style="{ color: 'var(--text-secondary)' }">دسته‌بندی:</span> <span :style="{ color: 'var(--text-primary)' }">{{ categoryLabels[place.category] || '-' }}</span></div>
-            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ ثبت:</span> <span :style="{ color: 'var(--text-primary)' }">{{ place.register_date || '-' }}</span></div>
-            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ بازدید:</span> <span :style="{ color: 'var(--text-primary)' }">{{ place.visit_date || '-' }}</span></div>
+            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ ثبت:</span> <span :style="{ color: 'var(--text-primary)' }">{{ formatDate(place.register_date) || '-' }}</span></div>
+            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ بازدید:</span> <span :style="{ color: 'var(--text-primary)' }">{{ formatDate(place.visit_date) || '-' }}</span></div>
             <div><span :style="{ color: 'var(--text-secondary)' }">امتیاز:</span> <span :style="{ color: 'var(--accent)' }">{{ place.rating || '-' }}/5</span></div>
             <div v-if="place.latitude"><span :style="{ color: 'var(--text-secondary)' }">موقعیت:</span> <span :style="{ color: 'var(--text-primary)' }">{{ place.latitude }}, {{ place.longitude }}</span></div>
           </div>
@@ -243,7 +245,7 @@ onMounted(() => { fetchPlaces(); fetchCategories() })
           </div>
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ ثبت</label>
-            <input v-model="form.register_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="form.register_date" placeholder="تاریخ ثبت" />
           </div>
           <div class="flex items-center gap-2 p-3 rounded-lg" :style="{ background: 'var(--bg-hover)' }">
             <input v-model="form.is_visited" type="checkbox" class="w-5 h-5 rounded" />
@@ -253,7 +255,7 @@ onMounted(() => { fetchPlaces(); fetchCategories() })
           </div>
           <div v-if="form.is_visited">
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ بازدید</label>
-            <input v-model="form.visit_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="form.visit_date" placeholder="تاریخ بازدید" />
           </div>
           <div v-if="form.is_visited">
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">امتیاز (۱ تا ۵)</label>

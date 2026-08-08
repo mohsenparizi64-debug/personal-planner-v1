@@ -1,12 +1,14 @@
 from pydantic import BaseModel
-from datetime import date, datetime
+from datetime import datetime
 from typing import Optional
+
+from app.core.pydantic_types import GDate
 
 class GoalBase(BaseModel):
     title: str
     description: Optional[str] = None
-    start_date: Optional[date] = None
-    target_date: Optional[date] = None
+    start_date: Optional[GDate] = None
+    target_date: Optional[GDate] = None
     current_status: Optional[str] = None
     current_obstacle: Optional[str] = None
     next_step: Optional[str] = None
@@ -19,8 +21,8 @@ class GoalCreate(GoalBase):
 class GoalUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    start_date: Optional[date] = None
-    target_date: Optional[date] = None
+    start_date: Optional[GDate] = None
+    target_date: Optional[GDate] = None
     current_status: Optional[str] = None
     current_obstacle: Optional[str] = None
     next_step: Optional[str] = None
@@ -35,5 +37,6 @@ class GoalRead(GoalBase):
     progress_percent: int
     owner_id: int
     created_at: datetime
+
     class Config:
         from_attributes = True

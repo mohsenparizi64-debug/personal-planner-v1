@@ -25,5 +25,6 @@ class KPIRead(KPIBase):
     owner_id: int
     last_updated: Optional[datetime] = None
     created_at: datetime
+
     class Config:
         from_attributes = True

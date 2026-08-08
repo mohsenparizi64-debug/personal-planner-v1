@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock } from 'lucide-vue-next'
 import api from '@/services/api'
+import DateInputPersian from '@/components/DateInputPersian.vue'
+import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
 const goals = ref([])
@@ -154,7 +156,6 @@ const resetAllGoals = async () => {
 }
 
 const showToast = (msg, type = 'success') => {
-  // استفاده از message در template
   message.value = msg
   messageType.value = type
   setTimeout(() => { message.value = '' }, 3000)
@@ -293,21 +294,13 @@ onMounted(() => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ تعریف هدف</label>
-              <input v-model="form.start_date" type="date"
-                     class="w-full px-4 py-3 rounded-xl transition text-right"
-                     :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+              <DateInputPersian v-model="form.start_date" placeholder="تاریخ تعریف هدف" />
             </div>
             <div>
               <label class="block text-sm mb-1" :style="{ color: validationErrors.target_date ? '#ef4444' : 'var(--text-secondary)' }">
                 تاریخ تحقق هدف {{ validationErrors.target_date ? '⚠️' : '' }}
               </label>
-              <input v-model="form.target_date" type="date"
-                     class="w-full px-4 py-3 rounded-xl transition text-right"
-                     :style="{ 
-                       background: 'var(--bg-primary)', 
-                       border: validationErrors.target_date ? '2px solid #ef4444' : '1px solid var(--border)', 
-                       color: 'var(--text-primary)' 
-                     }" />
+              <DateInputPersian v-model="form.target_date" placeholder="تاریخ تحقق هدف" />
               <p v-if="validationErrors.target_date" class="text-red-400 text-xs mt-1 mr-1">{{ validationErrors.target_date }}</p>
             </div>
           </div>
@@ -412,11 +405,11 @@ onMounted(() => {
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div v-if="goal.start_date" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
             <Calendar class="w-4 h-4" />
-            <span>شروع: {{ goal.start_date }}</span>
+            <span>شروع: {{ formatDate(goal.start_date) }}</span>
           </div>
           <div v-if="goal.target_date" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
             <Calendar class="w-4 h-4" />
-            <span>پایان: {{ goal.target_date }}</span>
+            <span>پایان: {{ formatDate(goal.target_date) }}</span>
           </div>
           <div v-if="goal.current_status" class="flex items-start gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
             <Zap class="w-4 h-4 mt-0.5" />

@@ -1,15 +1,17 @@
 from pydantic import BaseModel
-from datetime import date, datetime
+from datetime import datetime
 from typing import Optional
+
+from app.core.pydantic_types import GDate
 
 class PlaceBase(BaseModel):
     name: str
     category: Optional[str] = None
     address: Optional[str] = None
     description: Optional[str] = None
-    register_date: Optional[date] = None
+    register_date: Optional[GDate] = None
     is_visited: bool = False
-    visit_date: Optional[date] = None
+    visit_date: Optional[GDate] = None
     rating: int = 0
     notes: Optional[str] = None
     latitude: Optional[float] = None
@@ -24,9 +26,9 @@ class PlaceUpdate(BaseModel):
     category: Optional[str] = None
     address: Optional[str] = None
     description: Optional[str] = None
-    register_date: Optional[date] = None
+    register_date: Optional[GDate] = None
     is_visited: Optional[bool] = None
-    visit_date: Optional[date] = None
+    visit_date: Optional[GDate] = None
     rating: Optional[int] = None
     notes: Optional[str] = None
     latitude: Optional[float] = None
@@ -37,5 +39,6 @@ class PlaceRead(PlaceBase):
     id: int
     owner_id: int
     created_at: datetime
+
     class Config:
         from_attributes = True

@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { Plus, Trash2, Edit3, X, BookOpen, Star, Calendar, Eye, EyeOff, ChevronDown, ChevronUp, Search } from 'lucide-vue-next'
 import api from '@/services/api'
+import DateInputPersian from '@/components/DateInputPersian.vue'
+import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
 const books = ref([])
@@ -179,8 +181,8 @@ onMounted(() => { fetchBooks(); fetchCategories() })
         <div v-if="expandedBooks[book.id]" class="px-4 pb-4 border-t" :style="{ borderColor: 'var(--border)' }">
           <div class="grid grid-cols-2 gap-3 mt-3 text-sm">
             <div><span :style="{ color: 'var(--text-secondary)' }">نویسنده:</span> <span :style="{ color: 'var(--text-primary)' }">{{ book.author || '-' }}</span></div>
-            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ ثبت:</span> <span :style="{ color: 'var(--text-primary)' }">{{ book.register_date || '-' }}</span></div>
-            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ خواندن:</span> <span :style="{ color: 'var(--text-primary)' }">{{ book.read_date || '-' }}</span></div>
+            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ ثبت:</span> <span :style="{ color: 'var(--text-primary)' }">{{ formatDate(book.register_date) || '-' }}</span></div>
+            <div><span :style="{ color: 'var(--text-secondary)' }">تاریخ خواندن:</span> <span :style="{ color: 'var(--text-primary)' }">{{ formatDate(book.read_date) || '-' }}</span></div>
             <div><span :style="{ color: 'var(--text-secondary)' }">امتیاز:</span> <span :style="{ color: 'var(--accent)' }">{{ book.rating || '-' }}/10</span></div>
           </div>
           <div v-if="book.notes" class="mt-3 p-3 rounded-lg" :style="{ background: 'var(--bg-hover)' }">
@@ -201,7 +203,7 @@ onMounted(() => { fetchBooks(); fetchCategories() })
         <div class="space-y-3">
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ ثبت</label>
-            <input v-model="form.register_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="form.register_date" placeholder="تاریخ ثبت" />
           </div>
           <div>
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">نام کتاب *</label>
@@ -220,7 +222,7 @@ onMounted(() => { fetchBooks(); fetchCategories() })
           </div>
           <div v-if="form.is_read">
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ خواندن</label>
-            <input v-model="form.read_date" type="date" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <DateInputPersian v-model="form.read_date" placeholder="تاریخ خواندن" />
           </div>
           <div v-if="form.is_read">
             <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">امتیاز (۱ تا ۱۰)</label>
