@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from typing import Optional, List
+from datetime import date
 from datetime import datetime
 from typing import Optional
 
@@ -33,11 +35,12 @@ class AccountRead(AccountBase):
         from_attributes = True
 
 class TransactionBase(BaseModel):
-    transaction_date: Optional[GDate] = None
+    transaction_date: str
     transaction_type: str
-    amount: float = 0
+    amount: float
+    category: str # <--- اجباری
+    items: Optional[str] = None # <--- اختیاری
     description: Optional[str] = None
-    balance_after: Optional[float] = 0
 
 class TransactionCreate(TransactionBase):
     pass
@@ -45,8 +48,6 @@ class TransactionCreate(TransactionBase):
 class TransactionRead(TransactionBase):
     id: int
     account_id: int
-    owner_id: int
-    created_at: datetime
-
+    balance_after: float
     class Config:
         from_attributes = True

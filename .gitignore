@@ -12,3 +12,5 @@ backend/planner.db
 
 # Environment variables
 .env
+
+.continue/

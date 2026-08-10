@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date, Float
 from sqlalchemy.orm import relationship
 from app.db.base import Base, TimestampMixin
+from datetime import datetime
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -34,9 +35,11 @@ class Task(Base, TimestampMixin):
     priority = Column(Integer, default=0)
     is_completed = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
     owner = relationship("User")
-    sub_goal = relationship("SubGoal", backref="task_links")
-    goal = relationship("Goal", backref="linked_tasks")
+    # اصلاح برای رفع خطایی که فرستادید:
+    sub_goal = relationship("SubGoal", back_populates="main_tasks")
+    goal = relationship("Goal", back_populates="main_tasks")
 
 class Goal(Base, TimestampMixin):
     __tablename__ = "goals"
@@ -53,7 +56,10 @@ class Goal(Base, TimestampMixin):
     is_completed = Column(Boolean, default=False)
     progress_percent = Column(Integer, default=0)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
     owner = relationship("User")
+    sub_goals = relationship("SubGoal", back_populates="goal", cascade="all, delete-orphan")
+    main_tasks = relationship("Task", back_populates="goal")
 
 class GoalLog(Base, TimestampMixin):
     __tablename__ = "goal_logs"
@@ -69,30 +75,35 @@ class GoalLog(Base, TimestampMixin):
 
 class SubGoal(Base, TimestampMixin):
     __tablename__ = "sub_goals"
-    id = Column(Integer, primary_key=True, index=True)
-    goal_id = Column(Integer, ForeignKey("goals.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Integer, primary_key=True)
+    goal_id = Column(Integer, ForeignKey("goals.id", ondelete="CASCADE"))
     title = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    start_date = Column(Date, nullable=True)
-    target_date = Column(Date, nullable=True)
+    description = Column(String, nullable=True)
+    start_date = Column(String, nullable=True)
+    target_date = Column(String, nullable=True)
     status = Column(String, default="not_started")
     progress_percent = Column(Integer, default=0)
     order_index = Column(Integer, default=0)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    goal = relationship("Goal", backref="sub_goals")
-    sub_goal_tasks = relationship("SubGoalTask", back_populates="sub_goal", cascade="all, delete-orphan")
-    linked_tasks = relationship("Task", back_populates="sub_goal", cascade="all, delete-orphan")
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    
+    goal = relationship("Goal", back_populates="sub_goals")
+    # اصلاح شده: تعریف ویژگی main_tasks که قبلاً گم شده بود
+    dedicated_tasks = relationship("SubGoalTask", back_populates="sub_goal", cascade="all, delete-orphan")
+    main_tasks = relationship("Task", back_populates="sub_goal")
 
 class SubGoalTask(Base, TimestampMixin):
     __tablename__ = "sub_goal_tasks"
-    id = Column(Integer, primary_key=True, index=True)
-    sub_goal_id = Column(Integer, ForeignKey("sub_goals.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Integer, primary_key=True)
+    sub_goal_id = Column(Integer, ForeignKey("sub_goals.id", ondelete="CASCADE"))
     title = Column(String, nullable=False)
     is_completed = Column(Boolean, default=False)
     priority = Column(Integer, default=0)
-    due_date = Column(Date, nullable=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    sub_goal = relationship("SubGoal", back_populates="sub_goal_tasks")
+    due_date = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    last_action_date = Column(String, nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    
+    sub_goal = relationship("SubGoal", back_populates="dedicated_tasks")
 
 class KPI(Base, TimestampMixin):
     __tablename__ = "kpis"
@@ -117,20 +128,21 @@ class Account(Base, TimestampMixin):
     register_date = Column(Date, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User")
-    transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan", order_by="Transaction.transaction_date.desc()")
+    transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
 
 class Transaction(Base, TimestampMixin):
     __tablename__ = "transactions"
-    id = Column(Integer, primary_key=True, index=True)
-    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    transaction_date = Column(Date, nullable=True)
-    transaction_type = Column(String, nullable=False)
-    amount = Column(Float, default=0)
-    description = Column(Text, nullable=True)
-    balance_after = Column(Float, default=0)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(Integer, primary_key=True)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"))
+    transaction_date = Column(String)
+    transaction_type = Column(String)
+    amount = Column(Float)
+    category = Column(String, nullable=False)
+    items = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    balance_after = Column(Float)
+    owner_id = Column(Integer, ForeignKey("users.id"))
     account = relationship("Account", back_populates="transactions")
-    owner = relationship("User")
 
 class Movie(Base, TimestampMixin):
     __tablename__ = "movies"

@@ -123,22 +123,34 @@ const validateForm = () => {
 }
 
 const saveTask = async () => {
-  if (!validateForm()) { showToast('⚠️ لطفاً خطاهای فرم را برطرف کنید', 'error'); return }
-  isLoading.value = true
-  try {
-    const data = { ...form.value }
-    if (!data.sub_goal_id) data.sub_goal_id = null
-    if (!data.goal_id) data.goal_id = null
-    if (!data.duration_days) data.duration_days = null
-    for (const key of ['register_date', 'last_action_date', 'recurrence_end_date']) {
-      if (data[key] === '') data[key] = null
-    }
-    if (editingTask.value) { await api.put(`/tasks/${editingTask.value.id}`, data); showToast('✅ تسک بروزرسانی شد') }
-    else { await api.post('/tasks', data); showToast('✅ تسک جدید ایجاد شد') }
-    showTaskModal.value = false; editingTask.value = null; await fetchTasks()
-  } catch (e) { showToast('❌ خطا در ذخیره تسک', 'error') } finally { isLoading.value = false }
-}
+  // ۱. بررسی اعتبار فرم قبل از ارسال
+  if (!validateForm()) {
+    showToast('⚠️ لطفاً عنوان تسک را وارد کنید', 'error');
+    return;
+  }
 
+  try {
+    isLoading.value = true;
+    // ۲. استفاده از نام صحیح متغیر یعنی form به جای taskForm
+    const data = { ...form.value }; 
+    
+    if (editingTask.value) {
+      await api.put(`/tasks/${editingTask.value.id}`, data);
+      showToast('✅ تسک بروزرسانی شد');
+    } else {
+      await api.post('/tasks', data);
+      showToast('✅ تسک جدید ساخته شد');
+    }
+
+    showTaskModal.value = false;
+    await fetchTasks(); // رفرش کردن لیست
+  } catch (e) {
+    console.error(e);
+    showToast('❌ خطا در ذخیره تسک', 'error');
+  } finally {
+    isLoading.value = false;
+  }
+}
 const toggleTask = async (task) => {
   const ns = task.status === 'completed' ? 'not_started' : 'completed'
   await api.put(`/tasks/${task.id}`, { status: ns, is_completed: ns === 'completed' })

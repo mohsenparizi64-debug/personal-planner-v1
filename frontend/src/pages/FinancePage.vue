@@ -1,7 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { Plus, Trash2, Edit3, X, Wallet, CreditCard, Banknote, TrendingUp, TrendingDown, Calendar, ArrowUp, ArrowDown } from 'lucide-vue-next'
+import { 
+  Plus, Trash2, Edit3, X, Wallet, CreditCard, ArrowUp, ArrowDown, 
+  ChevronDown, ChevronUp, ShoppingBag, Utensils, Car, Home, HeartPulse, 
+  Smartphone, Gift, Landmark, Briefcase, HelpCircle, Package, ReceiptText
+} from 'lucide-vue-next'
 import api from '@/services/api'
 import DateInputPersian from '@/components/DateInputPersian.vue'
 import { formatDate } from '@/utils/date'
@@ -10,17 +14,85 @@ const themeStore = useThemeStore()
 const accounts = ref([])
 const message = ref('')
 const messageType = ref('success')
+const expandedAccounts = ref({})
 
-// فرم حساب
+// دسته‌بندی‌های پیش‌فرض
+const categories = {
+  withdrawal: [
+    { id: 'food', name: 'خوراک و رستوران', icon: Utensils, color: '#f97316' },
+    { id: 'transport', name: 'حمل و نقل / خودرو', icon: Car, color: '#3b82f6' },
+    { id: 'home', name: 'اجاره و قبوض', icon: Home, color: '#8b5cf6' },
+    { id: 'shopping', name: 'خرید لباس و کالا', icon: ShoppingBag, color: '#ec4899' },
+    { id: 'health', name: 'سلامت و درمان', icon: HeartPulse, color: '#ef4444' },
+    { id: 'digital', name: 'اشتراک و ابزار دیجیتال', icon: Smartphone, color: '#06b6d4' },
+    { id: 'loan', name: 'قسط و بدهی', icon: Landmark, color: '#64748b' },
+    { id: 'other_out', name: 'سایر هزینه‌ها', icon: HelpCircle, color: '#94a3b8' },
+  ],
+  deposit: [
+    { id: 'salary', name: 'حقوق و دستمزد', icon: Briefcase, color: '#22c55e' },
+    { id: 'gift', name: 'هدیه / جایزه', icon: Gift, color: '#eab308' },
+    { id: 'selling', name: 'فروش کالا', icon: Package, color: '#10b981' },
+    { id: 'other_in', name: 'سایر درآمدها', icon: Landmark, color: '#14b8a6' },
+  ]
+}
+
+// فرم‌ها و وضعیت‌ها
 const showAccountForm = ref(false)
 const editingAccount = ref(null)
 const accountForm = ref({ name: '', bank_name: '', sheba_number: '', current_balance: 0, register_date: new Date().toISOString().split('T')[0] })
 
-// فرم تراکنش
 const showTransactionForm = ref(false)
+const editingTransaction = ref(null)
 const selectedAccountId = ref(null)
 const selectedAccount = ref(null)
-const transactionForm = ref({ transaction_date: new Date().toISOString().split('T')[0], transaction_type: 'deposit', amount: 0, description: '' })
+const transactionForm = ref({ 
+  transaction_date: new Date().toISOString().split('T')[0], 
+  transaction_type: 'withdrawal', 
+  amount: 0, 
+  category: '', 
+  items: '', 
+  description: '' 
+})
+
+const errors = ref({ amount: false, category: false, name: false })
+
+// تابع تبدیل عدد به حروف فارسی (تومان)
+const numberToPersianWords = (num) => {
+  if (!num || num === 0) return '';
+  const units = ['', 'یک', 'دو', 'سه', 'چهار', 'پنج', 'شش', 'هفت', 'هشت', 'نه'];
+  const teens = ['ده', 'یازده', 'دوازده', 'سیزده', 'چهارده', 'پانزده', 'شانزده', 'هفده', 'هجده', 'نوزده'];
+  const tens = ['', '', 'بیست', 'سی', 'چهل', 'پنجاه', 'شصت', 'هفتاد', 'هشتاد', 'نود'];
+  const hundreds = ['', 'صد', 'دویست', 'سیصد', 'چهارصد', 'پانصد', 'ششصد', 'هفتصد', 'هشتصد', 'نهصد'];
+  
+  const convertChunk = (n) => {
+    let res = '';
+    if (n >= 100) { res += hundreds[Math.floor(n / 100)] + ' و '; n %= 100; }
+    if (n >= 20) { res += tens[Math.floor(n / 10)] + ' و '; n %= 10; }
+    else if (n >= 10) { res += teens[n - 10] + ' و '; n = 0; }
+    if (n > 0) { res += units[n] + ' و '; }
+    return res.endsWith(' و ') ? res.slice(0, -3) : res;
+  };
+
+  let n = Math.abs(num);
+  let result = '';
+  if (n >= 1000000000) { result += convertChunk(Math.floor(n / 1000000000)) + ' میلیارد و '; n %= 1000000000; }
+  if (n >= 1000000) { result += convertChunk(Math.floor(n / 1000000)) + ' میلیون و '; n %= 1000000; }
+  if (n >= 1000) { result += convertChunk(Math.floor(n / 1000)) + ' هزار و '; n %= 1000; }
+  if (n > 0) { result += convertChunk(n); }
+  
+  if (result.endsWith(' و ')) result = result.slice(0, -3);
+  return result + ' تومان';
+}
+
+const formatNumber = (val) => {
+  if (val === undefined || val === null || val === "") return "";
+  return String(val).replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+const parseNumber = (val) => {
+  if (typeof val === 'number') return val;
+  return Number(String(val).replace(/,/g, '')) || 0;
+};
 
 const showToast = (msg, type = 'success') => {
   message.value = msg; messageType.value = type
@@ -28,10 +100,12 @@ const showToast = (msg, type = 'success') => {
 }
 
 const fetchAccounts = async () => {
-  try { const res = await api.get('/finance/accounts'); accounts.value = res.data } catch (e) {}
+  try { const res = await api.get('/finance/accounts'); accounts.value = res.data; } catch (e) {}
 }
 
-// ====== Account CRUD ======
+const toggleTransactions = (id) => expandedAccounts.value[id] = !expandedAccounts.value[id];
+
+// ====== عملیات حساب (Account) ======
 const openNewAccount = () => {
   accountForm.value = { name: '', bank_name: '', sheba_number: '', current_balance: 0, register_date: new Date().toISOString().split('T')[0] }
   editingAccount.value = null
@@ -39,63 +113,88 @@ const openNewAccount = () => {
 }
 
 const openEditAccount = (acc) => {
-  accountForm.value = { ...acc }
+  accountForm.value = { ...acc, current_balance: acc.current_balance }
   editingAccount.value = acc
   showAccountForm.value = true
 }
 
 const saveAccount = async () => {
-  if (!accountForm.value.name.trim()) return
+  if (!accountForm.value.name.trim()) { errors.value.name = true; return; }
   try {
+    const payload = { ...accountForm.value, current_balance: parseNumber(accountForm.value.current_balance) };
     if (editingAccount.value) {
-      await api.put(`/finance/accounts/${editingAccount.value.id}`, accountForm.value)
+      await api.put(`/finance/accounts/${editingAccount.value.id}`, payload)
       showToast('✅ حساب بروزرسانی شد')
     } else {
-      await api.post('/finance/accounts', accountForm.value)
+      await api.post('/finance/accounts', payload)
       showToast('✅ حساب جدید ایجاد شد')
     }
-    showAccountForm.value = false
-    await fetchAccounts()
-  } catch (e) { showToast('❌ خطا', 'error') }
+    showAccountForm.value = false; await fetchAccounts()
+  } catch (e) { showToast('❌ خطا در ذخیره حساب', 'error') }
 }
 
 const deleteAccount = async (id) => {
-  if (!confirm('حذف حساب یعنی همه تراکنش‌هاش هم حذف میشن. مطمئنی؟')) return
+  if (!confirm('حذف حساب باعث حذف تمام تراکنش‌های آن می‌شود. آیا مطمئن هستید؟')) return
   try { await api.delete(`/finance/accounts/${id}`); showToast('🗑️ حساب حذف شد'); await fetchAccounts() } catch (e) {}
 }
 
-// ====== Transaction CRUD ======
+// ====== عملیات تراکنش (Transaction) ======
 const openNewTransaction = (acc) => {
-  selectedAccount.value = acc
-  selectedAccountId.value = acc.id
+  selectedAccount.value = acc; selectedAccountId.value = acc.id
+  editingTransaction.value = null
   transactionForm.value = { 
     transaction_date: new Date().toISOString().split('T')[0], 
-    transaction_type: 'deposit', 
-    amount: 0, 
-    description: '' 
+    transaction_type: 'withdrawal', amount: 0, category: '', items: '', description: '' 
   }
+  errors.value = { amount: false, category: false }
+  showTransactionForm.value = true
+}
+
+const openEditTransaction = (acc, trans) => {
+  selectedAccount.value = acc; selectedAccountId.value = acc.id
+  editingTransaction.value = trans
+  transactionForm.value = { ...trans }
   showTransactionForm.value = true
 }
 
 const saveTransaction = async () => {
-  if (!transactionForm.value.amount || transactionForm.value.amount <= 0) return
+  const amount = parseNumber(transactionForm.value.amount);
+  errors.value.amount = amount <= 0;
+  errors.value.category = !transactionForm.value.category;
+
+  if (errors.value.amount || errors.value.category) {
+    showToast('لطفاً فیلدهای اجباری را پر کنید', 'error'); return;
+  }
+
   try {
-    await api.post(`/finance/accounts/${selectedAccountId.value}/transactions`, transactionForm.value)
-    showToast('✅ تراکنش ثبت شد')
-    showTransactionForm.value = false
-    selectedAccount.value = null
-    await fetchAccounts()
-  } catch (e) { showToast('❌ خطا', 'error') }
+    const payload = { ...transactionForm.value, amount: amount };
+    if (editingTransaction.value) {
+      await api.put(`/finance/transactions/${editingTransaction.value.id}`, payload)
+      showToast('✅ تراکنش ویرایش شد')
+    } else {
+      await api.post(`/finance/accounts/${selectedAccountId.value}/transactions`, payload)
+      showToast('✅ تراکنش ثبت شد')
+    }
+    showTransactionForm.value = false; await fetchAccounts()
+  } catch (e) { showToast('❌ خطا در ثبت', 'error') }
 }
 
-const deleteTransaction = async (transId) => {
-  if (!confirm('حذف تراکنش؟')) return
-  try { await api.delete(`/finance/transactions/${transId}`); showToast('🗑️ تراکنش حذف شد'); await fetchAccounts() } catch (e) {}
+const deleteTransaction = async (id) => {
+  if (!confirm('آیا این تراکنش حذف شود؟')) return
+  try { await api.delete(`/finance/transactions/${id}`); showToast('🗑️ حذف شد'); await fetchAccounts() } catch (e) {}
 }
 
-const formatMoney = (amount) => {
-  return Number(amount).toLocaleString('fa-IR') + ' تومان'
+const getCategoryIcon = (catId) => {
+  const all = [...categories.withdrawal, ...categories.deposit];
+  return all.find(c => c.id === catId)?.icon || ReceiptText;
 }
+
+const getCategoryColor = (catId) => {
+  const all = [...categories.withdrawal, ...categories.deposit];
+  return all.find(c => c.id === catId)?.color || 'var(--text-secondary)';
+}
+
+const formatMoney = (amount) => formatNumber(Math.abs(amount)) + ' تومان';
 
 onMounted(fetchAccounts)
 </script>
@@ -104,7 +203,7 @@ onMounted(fetchAccounts)
   <div class="p-6 md:p-10 max-w-6xl mx-auto relative min-h-screen">
     
     <!-- Toast -->
-    <div v-if="message" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[200] px-6 py-3 rounded-xl shadow-2xl text-white font-semibold transition-all duration-300"
+    <div v-if="message" class="fixed top-24 left-1/2 transform -translate-x-1/2 z-[500] px-6 py-3 rounded-xl shadow-2xl text-white font-semibold"
          :style="{ background: messageType === 'error' ? '#ef4444' : 'var(--accent)' }">
       {{ message }}
     </div>
@@ -112,201 +211,187 @@ onMounted(fetchAccounts)
     <!-- Header -->
     <div class="flex items-center justify-between mb-8">
       <div>
-        <h1 class="text-3xl font-extrabold mb-1" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''" :style="{ color: 'var(--text-primary)' }">مدیریت مالی</h1>
-        <p :style="{ color: 'var(--text-secondary)' }">حساب‌ها و تراکنش‌های مالی</p>
+        <h1 class="text-3xl font-extrabold mb-1" :style="{ color: 'var(--text-primary)' }">امور مالی</h1>
+        <p :style="{ color: 'var(--text-secondary)' }">مدیریت درآمد و هزینه‌ها</p>
       </div>
-      <button @click="openNewAccount" class="px-5 py-2.5 rounded-xl text-white font-semibold transition flex items-center gap-2" :style="{ background: 'var(--accent)' }">
+      <button @click="openNewAccount" class="px-5 py-2.5 rounded-xl text-white font-semibold transition flex items-center gap-2 shadow-lg" :style="{ background: 'var(--accent)' }">
         <Plus class="w-5 h-5" /> حساب جدید
       </button>
     </div>
 
-    <!-- مجموع موجودی -->
+    <!-- Summary -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
       <div class="rounded-2xl p-6" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
-        <p class="text-sm mb-2" :style="{ color: 'var(--text-secondary)' }">مجموع موجودی</p>
-        <p class="text-3xl font-extrabold" :style="{ color: 'var(--accent)' }">
+        <p class="text-sm mb-2 opacity-70" :style="{ color: 'var(--text-secondary)' }">کل دارایی نقد</p>
+        <p class="text-2xl font-black" :style="{ color: 'var(--accent)' }">
           {{ formatMoney(accounts.reduce((sum, a) => sum + a.current_balance, 0)) }}
         </p>
       </div>
       <div class="rounded-2xl p-6" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
-        <p class="text-sm mb-2" :style="{ color: 'var(--text-secondary)' }">تعداد حساب‌ها</p>
-        <p class="text-3xl font-extrabold" :style="{ color: 'var(--text-primary)' }">{{ accounts.length }}</p>
+        <p class="text-sm mb-2 opacity-70" :style="{ color: 'var(--text-secondary)' }">تعداد حساب‌ها</p>
+        <p class="text-2xl font-black" :style="{ color: 'var(--text-primary)' }">{{ accounts.length }}</p>
       </div>
       <div class="rounded-2xl p-6" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
-        <p class="text-sm mb-2" :style="{ color: 'var(--text-secondary)' }">کل تراکنش‌ها</p>
-        <p class="text-3xl font-extrabold" :style="{ color: 'var(--text-primary)' }">{{ accounts.reduce((sum, a) => sum + (a.transaction_count || 0), 0) }}</p>
+        <p class="text-sm mb-2 opacity-70" :style="{ color: 'var(--text-secondary)' }">کل گردش حساب</p>
+        <p class="text-2xl font-black" :style="{ color: 'var(--text-primary)' }">{{ accounts.reduce((sum, a) => sum + (a.transaction_count || 0), 0) }}</p>
       </div>
     </div>
 
-    <!-- لیست حساب‌ها -->
-    <div v-if="accounts.length === 0" class="text-center py-20">
-      <Wallet class="w-16 h-16 mx-auto mb-4" :style="{ color: 'var(--accent)' }" />
-      <p class="text-xl font-bold mb-2" :style="{ color: 'var(--text-primary)' }">هنوز حسابی ثبت نکردی!</p>
-      <p :style="{ color: 'var(--text-secondary)' }">اولین حساب بانکی رو اضافه کن.</p>
-    </div>
-
+    <!-- Accounts List -->
     <div class="space-y-6">
-      <div v-for="acc in accounts" :key="acc.id" class="rounded-2xl overflow-hidden" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
-        
-        <!-- هدر حساب -->
-        <div @click="openNewTransaction(acc)" class="p-6 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition">
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl flex items-center justify-center" :style="{ background: 'var(--accent)' }">
-              <CreditCard class="w-6 h-6 text-white" />
+      <div v-for="acc in accounts" :key="acc.id" class="rounded-2xl overflow-hidden shadow-sm border" :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
+        <div class="p-6 flex items-center justify-between">
+          <div class="flex items-center gap-4 cursor-pointer" @click="toggleTransactions(acc.id)">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center" :style="{ background: 'var(--bg-primary)' }">
+              <CreditCard class="w-6 h-6" :style="{ color: 'var(--accent)' }" />
             </div>
             <div>
               <h3 class="text-lg font-bold" :style="{ color: 'var(--text-primary)' }">{{ acc.name }}</h3>
-              <div class="flex gap-3 text-xs" :style="{ color: 'var(--text-secondary)' }">
-                <span v-if="acc.bank_name">{{ acc.bank_name }}</span>
-                <span v-if="acc.sheba_number">شبا: {{ acc.sheba_number }}</span>
-              </div>
+              <p class="text-xs opacity-70" :style="{ color: 'var(--text-secondary)' }">{{ acc.bank_name || 'بدون نام بانک' }}</p>
             </div>
           </div>
-
           <div class="flex items-center gap-4">
             <div class="text-left">
-              <p class="text-xs" :style="{ color: 'var(--text-secondary)' }">موجودی</p>
-              <p class="text-xl font-extrabold" :style="{ color: acc.current_balance >= 0 ? '#22c55e' : '#ef4444' }">
-                {{ formatMoney(acc.current_balance) }}
-              </p>
+              <p class="text-[10px] uppercase opacity-50 text-left" :style="{ color: 'var(--text-secondary)' }">موجودی</p>
+              <p class="text-lg font-black" :style="{ color: acc.current_balance >= 0 ? '#22c55e' : '#ef4444' }">{{ formatMoney(acc.current_balance) }}</p>
             </div>
-            <div class="flex gap-1">
-              <button @click="openNewTransaction(acc)" class="p-2 rounded-lg transition" :style="{ background: 'var(--accent)', color: '#fff' }" title="تراکنش جدید">
-                <Plus class="w-4 h-4" />
-              </button>
-              <button @click="openEditAccount(acc)" class="p-2 rounded-lg hover:bg-white/10 transition" :style="{ color: 'var(--text-secondary)' }">
-                <Edit3 class="w-4 h-4" />
-              </button>
-              <button @click="deleteAccount(acc.id)" class="p-2 rounded-lg hover:bg-red-500/10 transition" :style="{ color: 'var(--text-secondary)' }">
-                <Trash2 class="w-4 h-4" />
+            <div class="flex gap-2">
+              <button @click="openNewTransaction(acc)" class="p-2 rounded-lg text-white shadow-md" :style="{ background: 'var(--accent)' }"><Plus class="w-5 h-5" /></button>
+              <button @click="openEditAccount(acc)" class="p-2 rounded-lg hover:bg-white/10" :style="{ color: 'var(--text-secondary)' }"><Edit3 class="w-4 h-4" /></button>
+              <button @click="deleteAccount(acc.id)" class="p-2 rounded-lg hover:bg-red-500/10" :style="{ color: 'var(--text-secondary)' }"><Trash2 class="w-4 h-4" /></button>
+              <button @click="toggleTransactions(acc.id)" class="p-2 rounded-lg hover:bg-white/10" :style="{ color: 'var(--text-secondary)' }">
+                <ChevronUp v-if="expandedAccounts[acc.id]" /> <ChevronDown v-else />
               </button>
             </div>
           </div>
         </div>
 
-        <!-- تراکنش‌ها -->
-        <div v-if="acc.transactions && acc.transactions.length > 0" class="border-t" :style="{ borderColor: 'var(--border)' }">
-          <div class="px-6 py-2 text-xs font-bold" :style="{ color: 'var(--text-secondary)', background: 'var(--bg-hover)' }">
-            تراکنش‌ها ({{ acc.transaction_count }})
-          </div>
-          <div class="divide-y" :style="{ borderColor: 'var(--border)' }">
-            <div v-for="trans in acc.transactions?.slice(0, 10)" :key="trans.id" 
-                 class="flex items-center justify-between px-6 py-3 text-sm hover:bg-white/[0.02] transition">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center"
-                     :style="{ background: trans.transaction_type === 'deposit' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)' }">
-                  <ArrowUp v-if="trans.transaction_type === 'deposit'" class="w-4 h-4 text-green-500" />
-                  <ArrowDown v-else class="w-4 h-4 text-red-400" />
+        <!-- Transactions Inside Account -->
+        <div v-if="expandedAccounts[acc.id]" class="border-t animate-in slide-in-from-top duration-300" :style="{ borderColor: 'var(--border)' }">
+          <div v-if="acc.transactions?.length > 0" class="divide-y" :style="{ borderColor: 'var(--border)' }">
+            <div v-for="trans in acc.transactions" :key="trans.id" class="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] group">
+              <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-inner" 
+                     :style="{ background: trans.transaction_type === 'deposit' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }">
+                  <component :is="getCategoryIcon(trans.category)" class="w-5 h-5" :style="{ color: getCategoryColor(trans.category) }" />
                 </div>
                 <div>
-                  <p :style="{ color: 'var(--text-primary)' }">{{ trans.description || (trans.transaction_type === 'deposit' ? 'واریز' : 'برداشت') }}</p>
-                  <p class="text-xs" :style="{ color: 'var(--text-secondary)' }">{{ formatDate(trans.transaction_date) }}</p>
+                  <p class="font-bold text-sm" :style="{ color: 'var(--text-primary)' }">{{ trans.description || 'تراکنش بانکی' }}</p>
+                  <p v-if="trans.items" class="text-[10px] opacity-60" :style="{ color: 'var(--text-secondary)' }">اقلام: {{ trans.items }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-4">
+              <div class="flex items-center gap-6">
                 <div class="text-left">
-                  <p class="font-bold" :style="{ color: trans.transaction_type === 'deposit' ? '#22c55e' : '#ef4444' }">
-                    {{ trans.transaction_type === 'deposit' ? '+' : '-' }}{{ formatMoney(trans.amount) }}
+                  <p class="font-black" :style="{ color: trans.transaction_type === 'deposit' ? '#22c55e' : '#ef4444' }">
+                    {{ trans.transaction_type === 'deposit' ? '+' : '-' }} {{ formatMoney(trans.amount) }}
                   </p>
-                  <p class="text-xs text-left" :style="{ color: 'var(--text-secondary)' }">مانده: {{ formatMoney(trans.balance_after) }}</p>
+                  <p class="text-[10px] opacity-50 text-left">{{ formatDate(trans.transaction_date) }}</p>
                 </div>
-                <button @click="deleteTransaction(trans.id)" class="p-1 rounded hover:bg-red-500/10 opacity-0 hover:opacity-100 transition" :style="{ color: 'var(--text-secondary)' }">
-                  <Trash2 class="w-3 h-3" />
-                </button>
+                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button @click="openEditTransaction(acc, trans)" class="p-1.5 rounded hover:bg-blue-500/10" :style="{ color: 'var(--text-secondary)' }"><Edit3 class="w-4 h-4" /></button>
+                  <button @click="deleteTransaction(trans.id)" class="p-1.5 rounded hover:bg-red-500/10" :style="{ color: 'var(--text-secondary)' }"><Trash2 class="w-4 h-4" /></button>
+                </div>
               </div>
             </div>
           </div>
+          <div v-else class="p-8 text-center opacity-40" :style="{ color: 'var(--text-secondary)' }">تراکنشی یافت نشد.</div>
         </div>
       </div>
     </div>
 
-    <!-- ========== مودال حساب ========== -->
-    <div v-if="showAccountForm" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="showAccountForm = false">
-      <div class="w-full max-w-md rounded-2xl p-6" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold" :style="{ color: 'var(--text-primary)' }">{{ editingAccount ? 'ویرایش حساب' : 'حساب جدید' }}</h3>
-          <button @click="showAccountForm = false" :style="{ color: 'var(--text-secondary)' }"><X class="w-5 h-5" /></button>
-        </div>
-        <div class="space-y-3">
+    <!-- Modal: Account -->
+    <div v-if="showAccountForm" class="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md" @click.self="showAccountForm = false">
+      <div class="w-full max-w-md rounded-3xl p-8 shadow-2xl" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
+        <h3 class="text-xl font-black mb-6" :style="{ color: 'var(--text-primary)' }">{{ editingAccount ? 'ویرایش حساب' : 'حساب جدید' }}</h3>
+        <div class="space-y-4">
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۱- تاریخ ثبت</label>
-            <DateInputPersian v-model="accountForm.register_date" placeholder="تاریخ ثبت" />
+            <label class="text-xs mb-1.5 block opacity-70" :style="{ color: 'var(--text-secondary)' }">نام حساب *</label>
+            <input v-model="accountForm.name" placeholder="مثلاً: کارت اصلی" class="w-full px-4 py-3 rounded-xl border outline-none" :style="{ background: 'var(--bg-primary)', borderColor: errors.name ? '#ef4444' : 'var(--border)', color: 'var(--text-primary)' }" @input="errors.name=false" />
           </div>
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۲- نام حساب *</label>
-            <input v-model="accountForm.name" placeholder="مثلاً: حساب جاری ملت" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <label class="text-xs mb-1.5 block opacity-70" :style="{ color: 'var(--text-secondary)' }">نام بانک</label>
+            <input v-model="accountForm.bank_name" placeholder="مثلاً: ملت" class="w-full px-4 py-3 rounded-xl border outline-none" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }" />
           </div>
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۳- بانک صادر کننده</label>
-            <input v-model="accountForm.bank_name" placeholder="مثلاً: بانک ملت" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <label class="text-xs mb-1.5 block opacity-70" :style="{ color: 'var(--text-secondary)' }">موجودی فعلی (تومان)</label>
+            <input :value="formatNumber(accountForm.current_balance)" @input="accountForm.current_balance = parseNumber($event.target.value)" class="w-full px-4 py-3 rounded-xl border font-bold text-lg" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--accent)' }" />
+            <p class="text-[10px] mt-1 pr-1 opacity-70" :style="{ color: 'var(--text-secondary)' }">{{ numberToPersianWords(parseNumber(accountForm.current_balance)) }}</p>
           </div>
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۴- شماره شبا</label>
-            <input v-model="accountForm.sheba_number" placeholder="IR..." class="w-full px-3 py-2.5 rounded-lg text-left" dir="ltr" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
-          </div>
-          <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۵- آخرین موجودی (تومان)</label>
-            <input v-model.number="accountForm.current_balance" type="number" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <label class="text-xs mb-1.5 block opacity-70" :style="{ color: 'var(--text-secondary)' }">تاریخ افتتاح</label>
+            <DateInputPersian v-model="accountForm.register_date" />
           </div>
         </div>
-        <div class="flex gap-3 mt-4">
-          <button @click="saveAccount" class="flex-1 py-2.5 rounded-xl text-white font-semibold" :style="{ background: 'var(--accent)' }">ذخیره</button>
-          <button @click="showAccountForm = false" class="px-4 py-2.5 rounded-xl" :style="{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">انصراف</button>
+        <div class="flex gap-3 mt-8">
+          <button @click="saveAccount" class="flex-1 py-3.5 rounded-2xl text-white font-bold" :style="{ background: 'var(--accent)' }">ذخیره</button>
+          <button @click="showAccountForm = false" class="px-6 py-3.5 rounded-2xl font-semibold" :style="{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">انصراف</button>
         </div>
       </div>
     </div>
 
-    <!-- ========== مودال تراکنش ========== -->
-    <div v-if="showTransactionForm" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="showTransactionForm = false">
-      <div class="w-full max-w-md rounded-2xl p-6" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold" :style="{ color: 'var(--text-primary)' }">تراکنش جدید</h3>
-          <p class="text-sm mb-2" :style="{ color: 'var(--accent)' }" v-if="selectedAccount">
-  حساب: {{ selectedAccount.name }} | موجودی فعلی: {{ formatMoney(selectedAccount.current_balance) }}
-</p>
-          <button @click="showTransactionForm = false" :style="{ color: 'var(--text-secondary)' }"><X class="w-5 h-5" /></button>
+    <!-- Modal: Transaction -->
+    <div v-if="showTransactionForm" class="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md" @click.self="showTransactionForm = false">
+      <div class="w-full max-w-lg rounded-3xl p-8 max-h-[90vh] overflow-y-auto shadow-2xl" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-xl font-black" :style="{ color: 'var(--text-primary)' }">ثبت تراکنش ({{ selectedAccount?.name }})</h3>
+          <button @click="showTransactionForm = false" :style="{ color: 'var(--text-secondary)' }"><X /></button>
         </div>
-        <div class="space-y-3">
-          <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۱- تاریخ تراکنش</label>
-            <DateInputPersian v-model="transactionForm.transaction_date" placeholder="تاریخ تراکنش" />
+
+        <div class="space-y-5">
+          <div class="flex gap-2 p-1 rounded-2xl" :style="{ background: 'var(--bg-primary)' }">
+            <button @click="transactionForm.transaction_type = 'withdrawal'; transactionForm.category=''" class="flex-1 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2" :style="transactionForm.transaction_type === 'withdrawal' ? { background: '#ef4444', color: '#fff' } : { color: 'var(--text-secondary)' }"> <ArrowDown class="w-4 h-4"/> هزینه </button>
+            <button @click="transactionForm.transaction_type = 'deposit'; transactionForm.category=''" class="flex-1 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2" :style="transactionForm.transaction_type === 'deposit' ? { background: '#22c55e', color: '#fff' } : { color: 'var(--text-secondary)' }"> <ArrowUp class="w-4 h-4"/> درآمد </button>
           </div>
+
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۲- نوع تراکنش</label>
-            <div class="flex gap-2">
-              <button @click="transactionForm.transaction_type = 'deposit'"
-                      class="flex-1 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2"
-                      :style="transactionForm.transaction_type === 'deposit' ? { background: '#22c55e', color: '#fff' } : { background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">
-                <ArrowUp class="w-4 h-4" /> واریز
-              </button>
-              <button @click="transactionForm.transaction_type = 'withdrawal'"
-                      class="flex-1 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2"
-                      :style="transactionForm.transaction_type === 'withdrawal' ? { background: '#ef4444', color: '#fff' } : { background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">
-                <ArrowDown class="w-4 h-4" /> برداشت
+            <label class="text-xs mb-2 block opacity-70" :style="{ color: errors.category ? '#ef4444' : 'var(--text-secondary)' }">انتخاب دسته‌بندی *</label>
+            <div class="grid grid-cols-4 gap-2">
+              <button v-for="cat in categories[transactionForm.transaction_type]" :key="cat.id" 
+                      @click="transactionForm.category = cat.id; errors.category = false"
+                      class="flex flex-col items-center p-2 rounded-xl border transition-all"
+                      :style="transactionForm.category === cat.id ? { borderColor: cat.color, background: cat.color + '15' } : { borderColor: 'var(--border)', background: 'transparent' }">
+                <component :is="cat.icon" class="w-6 h-6 mb-1" :style="{ color: cat.color }" />
+                <span class="text-[9px] text-center" :style="{ color: 'var(--text-primary)' }">{{ cat.name }}</span>
               </button>
             </div>
           </div>
+
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۳- مبلغ (تومان)</label>
-            <input v-model.number="transactionForm.amount" type="number" class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <label class="text-xs mb-1 block" :style="{ color: errors.amount ? '#ef4444' : 'var(--text-secondary)' }">مبلغ (تومان) *</label>
+            <input :value="formatNumber(transactionForm.amount)" @input="transactionForm.amount = $event.target.value; errors.amount = false" 
+                   class="w-full px-4 py-4 rounded-xl border font-black text-2xl text-center outline-none focus:ring-2" 
+                   :style="{ background: 'var(--bg-primary)', borderColor: errors.amount ? '#ef4444' : 'var(--border)', color: 'var(--text-primary)', '--tw-ring-color': 'var(--accent)' }" />
+            <p class="text-xs mt-2 text-center font-medium" :style="{ color: 'var(--accent)' }">{{ numberToPersianWords(parseNumber(transactionForm.amount)) }}</p>
           </div>
+
+          <div v-if="transactionForm.transaction_type === 'withdrawal'">
+            <label class="text-xs mb-1 block opacity-70" :style="{ color: 'var(--text-secondary)' }">لیست اقلام خرید</label>
+            <input v-model="transactionForm.items" placeholder="مثلاً: ماست، نان، میوه..." class="w-full px-4 py-3 rounded-xl border outline-none" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }" />
+          </div>
+
           <div>
-            <label class="block text-sm mb-1" :style="{ color: 'var(--text-secondary)' }">۴- توضیحات</label>
-            <input v-model="transactionForm.description" placeholder="بابت..." class="w-full px-3 py-2.5 rounded-lg" :style="{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }" />
+            <label class="text-xs mb-1 block opacity-70" :style="{ color: 'var(--text-secondary)' }">توضیحات یا نام فروشگاه</label>
+            <input v-model="transactionForm.description" placeholder="توضیح اختیاری..." class="w-full px-4 py-3 rounded-xl border outline-none" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }" />
           </div>
-          <div v-if="selectedAccount" class="p-3 rounded-lg" :style="{ background: 'var(--bg-hover)' }">
-  <p class="text-sm" :style="{ color: 'var(--text-secondary)' }">۵- مانده حساب پس از تراکنش:</p>
-  <p class="text-lg font-extrabold" :style="{ color: (selectedAccount.current_balance + (transactionForm.transaction_type === 'deposit' ? transactionForm.amount : -transactionForm.amount)) >= 0 ? '#22c55e' : '#ef4444' }">
-    {{ formatMoney(selectedAccount.current_balance + (transactionForm.transaction_type === 'deposit' ? transactionForm.amount : -transactionForm.amount)) }}
-  </p>
-</div>
+
+          <div>
+            <label class="text-xs mb-1 block opacity-70" :style="{ color: 'var(--text-secondary)' }">تاریخ تراکنش</label>
+            <DateInputPersian v-model="transactionForm.transaction_date" />
+          </div>
         </div>
-        <div class="flex gap-3 mt-4">
-          <button @click="saveTransaction" class="flex-1 py-2.5 rounded-xl text-white font-semibold" :style="{ background: 'var(--accent)' }">ثبت تراکنش</button>
-          <button @click="showTransactionForm = false" class="px-4 py-2.5 rounded-xl" :style="{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">انصراف</button>
+
+        <div class="flex gap-3 mt-8">
+          <button @click="saveTransaction" class="flex-1 py-4 rounded-2xl text-white font-bold text-lg shadow-lg" :style="{ background: 'var(--accent)' }">تایید نهایی</button>
+          <button @click="showTransactionForm = false" class="px-6 py-4 rounded-2xl font-semibold" :style="{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">انصراف</button>
         </div>
       </div>
     </div>
 
   </div>
 </template>
+
+<style scoped>
+.animate-in { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+</style>
