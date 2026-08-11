@@ -1,34 +1,37 @@
-from pydantic import BaseModel
-from datetime import datetime
-from typing import Optional
-
-from app.core.pydantic_types import GDate
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, Union
+from datetime import date
 
 class MovieBase(BaseModel):
     title: str
+    movie_type: Optional[str] = "movie"
     category: Optional[str] = None
-    register_date: Optional[GDate] = None
-    watch_date: Optional[GDate] = None
-    rating: int = 0
+    origin: Optional[str] = "foreign" # <--- اضافه شد
+    register_date: Optional[Union[str, date]] = None
+    watch_date: Optional[Union[str, date]] = None
+    rating: Optional[int] = 0
     notes: Optional[str] = None
-    is_watched: bool = False
+    poster_url: Optional[str] = None
+    imdb_url: Optional[str] = None
+    is_watched: Optional[bool] = False
 
 class MovieCreate(MovieBase):
     pass
 
 class MovieUpdate(BaseModel):
     title: Optional[str] = None
+    movie_type: Optional[str] = None
     category: Optional[str] = None
-    register_date: Optional[GDate] = None
-    watch_date: Optional[GDate] = None
+    origin: Optional[str] = None # <--- اضافه شد
+    register_date: Optional[Union[str, date]] = None
+    watch_date: Optional[Union[str, date]] = None
     rating: Optional[int] = None
     notes: Optional[str] = None
+    poster_url: Optional[str] = None
+    imdb_url: Optional[str] = None
     is_watched: Optional[bool] = None
 
 class MovieRead(MovieBase):
     id: int
     owner_id: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

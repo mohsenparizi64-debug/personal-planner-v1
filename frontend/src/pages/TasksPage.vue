@@ -159,6 +159,28 @@ const toggleTask = async (task) => {
 const deleteTask = async (id) => { if (!confirm('مطمئنی؟')) return; try { await api.delete(`/tasks/${id}`); showToast('🗑️ تسک حذف شد'); await fetchTasks() } catch (e) {} }
 
 onMounted(() => { fetchTasks(); fetchGoals(); fetchCategories() })
+onMounted(async () => {
+  await fetchTasks()
+  await fetchGoals()
+  await fetchCategories()
+
+  // اگر از نقشه راه وارد شده بود، فیلتر هدف و گام را خودکار فعال کن
+  const savedGoalId = sessionStorage.getItem('active_goal_id')
+  const savedSubGoalId = sessionStorage.getItem('active_sub_goal_id')
+
+  if (savedGoalId) {
+    filterGoalId.value = Number(savedGoalId)
+    await fetchSubGoals(Number(savedGoalId)) // دریافت زیرهدف‌ها
+    sessionStorage.removeItem('active_goal_id')
+  }
+
+  if (savedSubGoalId) {
+    // اعمال فیلتر روی کلاینت
+    filterSearch.value = '' // پاک کردن جستجوی متنی
+    sessionStorage.removeItem('active_sub_goal_id')
+    showToast('📍 تسک‌های مربوط به گام انتخابی فیلتر شدند')
+  }
+})
 </script>
 
 <template>

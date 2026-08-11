@@ -12,10 +12,21 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    user_id = decode_access_token(token)
-    if not user_id:
+    payload = decode_access_token(token)
+    if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
-    result = await db.execute(select(User).where(User.id == int(user_id)))
+    
+    # استخراج هوشمند شناسه کاربر
+    user_id = payload
+    if isinstance(user_id, dict):
+        user_id = user_id.get("sub") or user_id.get("id")
+
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+    result = await db.execute(select(User).where(User.id == user_id_int))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")

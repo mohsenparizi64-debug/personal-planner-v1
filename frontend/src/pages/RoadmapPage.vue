@@ -80,6 +80,15 @@ const fetchKPIs = async () => {
 }
 
 const selectGoal = (id) => { selectedGoalId.value = id; fetchSubGoals(); fetchKPIs() }
+import { useRouter } from 'vue-router'
+const router = useRouter()
+
+// تابع جهش مستقیم به صفحه تسک‌ها همراه با فیلتر هوشمند این گام
+const goToTasks = (subGoalId, goalId) => {
+  sessionStorage.setItem('active_goal_id', goalId)
+  sessionStorage.setItem('active_sub_goal_id', subGoalId)
+  router.push('/tasks')
+}
 const isMainTask = (task) => task.source === 'main_task'
 const toggleTask = async (task) => {
   try {
@@ -139,6 +148,17 @@ const subGoalProgress = (sg) => {
 
 onMounted(() => { 
   fetchGoals()
+  api.get('/tasks/categories').then(res => categories.value = res.data)
+})
+onMounted(() => {
+  fetchGoals().then(() => {
+    // اگر از صفحه اهداف روی دکمه جهش کلیک شده بود، آن هدف را خودکار باز کن
+    const savedGoalId = sessionStorage.getItem('active_goal_id')
+    if (savedGoalId) {
+      selectGoal(Number(savedGoalId))
+      sessionStorage.removeItem('active_goal_id') // پاکسازی حافظه موقت
+    }
+  })
   api.get('/tasks/categories').then(res => categories.value = res.data)
 })
 </script>
@@ -215,6 +235,11 @@ onMounted(() => {
                     <div class="h-full rounded-full transition-all duration-700" :style="{ width: subGoalProgress(sg) + '%', background: 'var(--accent)' }"></div>
                  </div>
                  <span class="text-xl font-black" :style="{ color: 'var(--accent)' }">{{ subGoalProgress(sg) }}%</span>
+                 <button @click.stop="goToTasks(sg.id, selectedGoalId)" 
+        class="px-3.5 py-1.5 rounded-xl font-bold text-xs text-white transition flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600">
+  <span>تسک‌های این گام در اتاق عملیات</span>
+  <span>➔</span>
+</button>
                </div>
                <div class="flex gap-2" @click.stop>
                  <button @click="editingSubGoal = sg; subGoalForm = {...sg}; showSubGoalForm = true" class="p-3 hover:bg-white/10 rounded-xl transition"><Edit3 class="w-6 h-6" /></button>

@@ -26,6 +26,7 @@ const menuItems = [
   { path: '/tasks', label: 'تسک‌ها', icon: ListTodo },
   { path: '/goals', label: 'اهداف', icon: Target },
   { path: '/roadmap', label: 'نقشه راه', icon: MapPin },
+  { path: '/calendar', label: 'تقویم', icon: Calendar },
   { path: '/finance', label: 'مالی', icon: Wallet },
   { path: '/movies', label: 'فیلم‌ها', icon: Film },
   { path: '/books', label: 'کتاب‌ها', icon: BookOpen },
@@ -36,7 +37,7 @@ const menuItems = [
 function updateDateTime() {
   const now = new Date()
   currentTime.value = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  currentDate.value = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  currentDate.value = now.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
   dayOfWeek.value = now.toLocaleDateString('fa-IR', { weekday: 'long' })
   persianDate.value = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric' }).format(now)
 }
@@ -140,36 +141,61 @@ const cancelLogout = () => {
     <!-- Main Content -->
     <main class="flex-1 overflow-auto relative z-10" style="background: transparent;">
       
-      <!-- Header Bar -->
-      <header class="sticky top-0 z-30 backdrop-blur-lg border-b" :style="{ background: 'var(--header-bg)', borderColor: 'var(--border)' }">
-        <div class="flex items-center justify-between px-6 py-3">
-          <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 hover:bg-white/5 rounded-lg transition" :style="{ color: 'var(--text-primary)' }">
-            <Menu v-if="!sidebarOpen" class="w-6 h-6" /><X v-else class="w-6 h-6" />
+      <!-- هدر جدید، شکیل و کپسولی -->
+       <header class="sticky top-0 z-30 backdrop-blur-xl border-b shadow-lg transition-all" 
+              :style="{ background: 'rgba(15, 23, 42, 0.85)', borderColor: 'var(--border)' }">
+        <div class="flex items-center justify-between px-6 py-3.5">
+          
+          
+          <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 hover:bg-white/5 rounded-xl transition text-white">
+            <Menu v-if="!sidebarOpen" class="w-7 h-7" /><X v-else class="w-7 h-7" />
           </button>
 
-          <div class="flex items-center gap-4 md:gap-8">
+          
+          <div class="flex items-center gap-4 md:gap-6">
+            
             <AnalogClock />
-            <div class="hidden md:flex items-center gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
-              <Calendar class="w-4 h-4" /><span>{{ dayOfWeek }} - {{ persianDate }}</span>
+
+            
+            <div class="hidden md:flex items-center gap-2.5 px-4 py-2 rounded-2xl border bg-white/5 backdrop-blur-md text-sm md:text-base font-black shadow-inner"
+                 :style="{ borderColor: 'var(--border)', color: 'var(--text-primary)' }">
+              <Calendar class="w-5 h-5 text-purple-400" />
+              <span>{{ dayOfWeek }} {{ persianDate }}</span>
             </div>
-            <div class="hidden lg:flex items-center gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
-              <Calendar class="w-4 h-4" /><span>{{ currentDate }}</span>
+
+            
+            <div class="hidden lg:flex items-center gap-2.5 px-4 py-2 rounded-2xl border bg-white/5 backdrop-blur-md text-xs md:text-sm font-bold opacity-80"
+                 :style="{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }">
+              <span>{{ currentDate }}</span>
             </div>
-            <div class="flex items-center gap-2 font-bold text-lg" :style="{ color: 'var(--accent)' }">
-              <Clock class="w-5 h-5" /><span>{{ currentTime }}</span>
+
+            
+            <div class="flex items-center gap-2.5 px-5 py-2 rounded-2xl border bg-blue-500/10 backdrop-blur-md text-xl md:text-2xl font-black shadow-xl"
+                 :style="{ borderColor: 'rgba(59, 130, 246, 0.4)', color: 'var(--accent)' }">
+              <Clock class="w-6 h-6 text-blue-400 animate-pulse" />
+              <span dir="ltr" class="font-mono tracking-widest">{{ currentTime }}</span>
             </div>
           </div>
 
-          <router-link to="/profile" class="flex items-center gap-3 hover:opacity-80 transition">
+          
+          <router-link to="/profile" class="flex items-center gap-3.5 p-2 pr-4 rounded-2xl border bg-white/5 hover:bg-white/10 transition backdrop-blur-md group"
+                       :style="{ borderColor: 'var(--border)' }">
             <div class="text-left hidden md:block">
-              <p class="text-sm font-bold" :style="{ color: 'var(--text-primary)' }">{{ authStore.user?.full_name || 'کاربر' }} 👋</p>
-              <p class="text-xs" :style="{ color: 'var(--text-secondary)' }">خوش آمدی!</p>
+              <p class="text-sm md:text-base font-black group-hover:text-blue-400 transition" :style="{ color: 'var(--text-primary)' }">{{ authStore.user?.full_name || 'کاربر گرامی' }}</p>
+              <p class="text-xs opacity-70 flex items-center gap-1.5 justify-end" :style="{ color: 'var(--text-secondary)' }">
+                <span class="w-2 h-2 rounded-full bg-green-500 inline-block animate-ping"></span> آنلاین
+              </p>
             </div>
-            <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg"
-                 :style="{ background: authStore.user?.avatar_url ? `url(${authStore.user.avatar_url}) center/cover` : 'linear-gradient(135deg, #8b5cf6, #3b82f6)' }">
-              {{ !authStore.user?.avatar_url ? (authStore.user?.full_name?.charAt(0) || 'U') : '' }}
+            
+            <div class="relative">
+              <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-md overflow-hidden border-2 border-white/20"
+                   :style="{ background: authStore.user?.avatar_url ? `url(${authStore.user.avatar_url}) center/cover` : 'linear-gradient(135deg, #8b5cf6, #3b82f6)' }">
+                {{ !authStore.user?.avatar_url ? (authStore.user?.full_name?.charAt(0) || 'U') : '' }}
+              </div>
+              <span class="w-3 h-3 rounded-full bg-green-500 border-2 border-gray-900 absolute -bottom-0.5 -right-0.5"></span>
             </div>
           </router-link>
+
         </div>
       </header>
 
@@ -188,13 +214,13 @@ const cancelLogout = () => {
 
     <!-- مودال تأیید خروج -->
     <div v-if="showLogoutConfirm" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div class="w-full max-w-sm rounded-2xl p-6 text-center" :style="{ background: 'var(--bg-card)', border: '1px solid var(--border)' }">
+      <div class="w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl border" :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
         <div class="text-5xl mb-4">🚪</div>
         <h3 class="text-xl font-bold mb-2" :style="{ color: 'var(--text-primary)' }">خروج از حساب</h3>
         <p class="text-sm mb-6" :style="{ color: 'var(--text-secondary)' }">آیا مطمئن هستید که می‌خواهید خارج شوید؟</p>
         <div class="flex gap-3">
-          <button @click="confirmLogout" class="flex-1 py-2.5 rounded-xl text-white font-semibold bg-red-500 hover:bg-red-600 transition">بله، خارج می‌شم</button>
-          <button @click="cancelLogout" class="flex-1 py-2.5 rounded-xl font-semibold transition" :style="{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">انصراف</button>
+          <button @click="confirmLogout" class="flex-1 py-2.5 rounded-2xl text-white font-bold bg-red-500 hover:bg-red-600 transition shadow-lg shadow-red-500/20">بله، خارج می‌شم</button>
+          <button @click="cancelLogout" class="flex-1 py-2.5 rounded-2xl font-semibold transition bg-white/10 hover:bg-white/20" :style="{ color: 'var(--text-secondary)' }">انصراف</button>
         </div>
       </div>
     </div>

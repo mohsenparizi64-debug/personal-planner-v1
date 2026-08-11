@@ -14,6 +14,7 @@ import BooksPage from '@/pages/BooksPage.vue'
 import PlacesPage from '@/pages/PlacesPage.vue'
 import BackupPage from '@/pages/BackupPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
+import CalendarPage from '@/pages/CalendarPage.vue'
 
 const routes = [
   { path: '/login', component: LoginPage, meta: { guest: true } },
@@ -29,6 +30,7 @@ const routes = [
   { path: '/places', component: PlacesPage, meta: { requiresAuth: true } },
   { path: '/backup', component: BackupPage, meta: { requiresAuth: true } },
   { path: '/profile', component: ProfilePage, meta: { requiresAuth: true } },
+  {path: '/calendar',name: 'Calendar',component: CalendarPage,meta: { requiresAuth: true }}
 ]
 
 const router = createRouter({

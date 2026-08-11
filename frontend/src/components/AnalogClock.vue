@@ -1,97 +1,114 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useThemeStore } from '@/stores/theme'
 
-const themeStore = useThemeStore()
-const canvas = ref(null)
-let animationId = null
+const canvasRef = ref(null)
+let animId = null
 
 function drawClock() {
-  const ctx = canvas.value?.getContext('2d')
+  const canvas = canvasRef.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  const size = 100
-  canvas.value.width = size
-  canvas.value.height = size
+  const width = canvas.width
+  const height = canvas.height
+  const radius = width / 2
+  
+  ctx.clearRect(0, 0, width, height)
 
   const now = new Date()
   const hours = now.getHours() % 12
   const minutes = now.getMinutes()
   const seconds = now.getSeconds()
+  const milliseconds = now.getMilliseconds()
 
-  const cx = size / 2
-  const cy = size / 2
-  const radius = size / 2 - 4
+  ctx.save()
+  ctx.translate(radius, radius)
 
-  // Clear
-  ctx.clearRect(0, 0, size, size)
-
-  // رنگ‌ها بر اساس تم
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#8b5cf6'
-  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#e2e8f0'
-  const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#1a1a2e'
-
-  // بدنه ساعت
+  // ۱. پس‌زمینه و حلقه بیرونی درخشان بزرگتر
   ctx.beginPath()
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-  ctx.fillStyle = bgColor
+  ctx.arc(0, 0, radius - 3, 0, 2 * Math.PI)
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.7)'
   ctx.fill()
-  ctx.strokeStyle = accent
   ctx.lineWidth = 2
+  ctx.strokeStyle = '#8b5cf6' // هاله بنفش
   ctx.stroke()
 
-  // glow effect
-  ctx.shadowColor = accent
-  ctx.shadowBlur = 8
-  ctx.stroke()
-  ctx.shadowBlur = 0
-
-  // اعداد
-  ctx.fillStyle = textColor
-  ctx.font = 'bold 11px Vazirmatn'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  for (let i = 1; i <= 12; i++) {
-    const angle = (i * 30 - 90) * Math.PI / 180
-    const x = cx + Math.cos(angle) * (radius - 16)
-    const y = cy + Math.sin(angle) * (radius - 16)
-    ctx.fillText(i.toString(), x, y)
+  // ۲. نشانگرهای ۱۲ ساعت
+  for (let i = 0; i < 12; i++) {
+    const angle = (i * Math.PI) / 6
+    ctx.rotate(angle)
+    ctx.beginPath()
+    ctx.moveTo(0, -(radius - 8))
+    ctx.lineTo(0, -(radius - (i % 3 === 0 ? 14 : 10)))
+    ctx.lineWidth = i % 3 === 0 ? 2.5 : 1.2
+    ctx.strokeStyle = i % 3 === 0 ? '#8b5cf6' : 'rgba(255, 255, 255, 0.4)'
+    ctx.stroke()
+    ctx.rotate(-angle)
   }
 
-  // عقربه‌ها
-  drawHand(ctx, cx, cy, (hours * 30 + minutes * 0.5 - 90) * Math.PI / 180, radius * 0.5, 4, accent)
-  drawHand(ctx, cx, cy, (minutes * 6 - 90) * Math.PI / 180, radius * 0.7, 3, textColor)
-  drawHand(ctx, cx, cy, (seconds * 6 - 90) * Math.PI / 180, radius * 0.8, 1.5, '#ef4444')
-
-  // نقطه مرکزی
+  // ۳. عقربه ساعت (ضخیم‌تر)
+  const hourAngle = (hours * Math.PI) / 6 + (minutes * Math.PI) / 360
+  ctx.save()
+  ctx.rotate(hourAngle)
   ctx.beginPath()
-  ctx.arc(cx, cy, 4, 0, Math.PI * 2)
-  ctx.fillStyle = accent
+  ctx.moveTo(0, 5)
+  ctx.lineTo(0, -(radius * 0.45))
+  ctx.lineWidth = 4
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = '#ffffff'
+  ctx.stroke()
+  ctx.restore()
+
+  // ۴. عقربه دقیقه
+  const minuteAngle = (minutes * Math.PI) / 30 + (seconds * Math.PI) / 1800
+  ctx.save()
+  ctx.rotate(minuteAngle)
+  ctx.beginPath()
+  ctx.moveTo(0, 7)
+  ctx.lineTo(0, -(radius * 0.68))
+  ctx.lineWidth = 2.5
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = '#3b82f6'
+  ctx.stroke()
+  ctx.restore()
+
+  // ۵. عقربه ثانیه (روان)
+  const exactSecond = seconds + milliseconds / 1000
+  const secondAngle = (exactSecond * Math.PI) / 30
+  ctx.save()
+  ctx.rotate(secondAngle)
+  ctx.beginPath()
+  ctx.moveTo(0, 10)
+  ctx.lineTo(0, -(radius * 0.82))
+  ctx.lineWidth = 2
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = '#ef4444'
+  ctx.stroke()
+  ctx.restore()
+
+  // ۶. دکمه مرکزی
+  ctx.beginPath()
+  ctx.arc(0, 0, 4, 0, 2 * Math.PI)
+  ctx.fillStyle = '#ef4444'
   ctx.fill()
 
-  animationId = requestAnimationFrame(drawClock)
-}
+  ctx.restore()
 
-function drawHand(ctx, x, y, angle, length, width, color) {
-  ctx.beginPath()
-  ctx.moveTo(x, y)
-  ctx.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length)
-  ctx.strokeStyle = color
-  ctx.lineWidth = width
-  ctx.lineCap = 'round'
-  ctx.stroke()
+  animId = requestAnimationFrame(drawClock)
 }
 
 onMounted(() => {
-  drawClock()
+  animId = requestAnimationFrame(drawClock)
 })
+
 onUnmounted(() => {
-  if (animationId) cancelAnimationFrame(animationId)
+  if (animId) cancelAnimationFrame(animId)
 })
 </script>
 
 <template>
-  <div class="relative inline-flex items-center gap-3">
-    <canvas ref="canvas" class="w-[50px] h-[50px] md:w-[60px] md:h-[60px]"></canvas>
+  <div class="relative flex items-center justify-center p-1.5 rounded-full shadow-xl" :style="{ background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }">
+    <canvas ref="canvasRef" width="64" height="64" class="block"></canvas>
   </div>
 </template>
