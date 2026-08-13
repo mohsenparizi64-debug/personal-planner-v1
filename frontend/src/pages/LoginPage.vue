@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -10,6 +10,13 @@ const email = ref('')
 const password = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
+
+onMounted(() => {
+  // اگر پیام انقضای کلمه عبور موجود باشد، آن را نمایش دهد
+  if (auth.sessionExpiredMessage) {
+    errorMessage.value = `⚠️ ${auth.sessionExpiredMessage}`
+  }
+})
 
 const handleLogin = async () => {
   try {
@@ -83,7 +90,8 @@ const handleLogin = async () => {
             />
           </div>
 
-          <div v-if="errorMessage" class="text-sm p-3 rounded-xl" :class="errorMessage.startsWith('⚠️') ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'">
+          <!-- باکس پیام انقضا یا خطا -->
+          <div v-if="errorMessage" class="text-sm p-3 rounded-xl font-bold" :class="errorMessage.startsWith('⚠️') ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'">
             {{ errorMessage }}
           </div>
 

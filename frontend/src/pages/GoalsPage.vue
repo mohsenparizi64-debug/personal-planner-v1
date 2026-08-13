@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock } from 'lucide-vue-next'
+import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock, ArrowRight, Eye, Sparkles } from 'lucide-vue-next'
 import api from '@/services/api'
 import DateInputPersian from '@/components/DateInputPersian.vue'
 import { formatDate } from '@/utils/date'
@@ -13,6 +13,7 @@ const recentLogs = ref([])
 const showForm = ref(false)
 const showLogs = ref(false)
 const editingGoal = ref(null)
+const selectedGoal = ref(null) // <--- استیت مربوط به حالت تمرکز و فوکوس روی هدف
 const isLoading = ref(false)
 const validationErrors = ref({})
 const router = useRouter()
@@ -20,6 +21,15 @@ const router = useRouter()
 const goToRoadmap = (goalId) => {
   sessionStorage.setItem('active_goal_id', goalId)
   router.push('/roadmap')
+}
+
+// انتخاب هدف برای حالت تمرکز (Spotlight Focus)
+const selectGoalForFocus = (goal) => {
+  selectedGoal.value = goal
+}
+
+const closeFocusMode = () => {
+  selectedGoal.value = null
 }
 
 const form = ref({
@@ -41,6 +51,11 @@ const fetchGoals = async () => {
   try {
     const response = await api.get('/goals')
     goals.value = response.data
+    // اگر هدفی در حالت فوکوس بود، اطلاعاتش آپدیت شود
+    if (selectedGoal.value) {
+      const updated = goals.value.find(g => g.id === selectedGoal.value.id)
+      if (updated) selectedGoal.value = updated
+    }
   } catch (error) {
     console.error('خطا در گرفتن اهداف', error)
   }
@@ -96,7 +111,7 @@ const saveGoal = async () => {
     hasError = true
   }
   
-  // --- اصلاح باگ ب۴: مقایسه دقیق و استاندارد تاریخ شمسی/میلادی ---
+  // مقایسه دقیق و استاندارد تاریخ شمسی/میلادی
   if (form.value.start_date && form.value.target_date) {
     const startStr = String(form.value.start_date).replace(/\//g, '-')
     const targetStr = String(form.value.target_date).replace(/\//g, '-')
@@ -143,6 +158,9 @@ const deleteGoal = async (goalId) => {
   if (!confirm('مطمئنی می‌خوای این هدف رو حذف کنی؟')) return
   try {
     await api.delete(`/goals/${goalId}`)
+    if (selectedGoal.value && selectedGoal.value.id === goalId) {
+      selectedGoal.value = null
+    }
     await fetchGoals()
     await fetchLogs()
     showToast('🗑️ هدف حذف شد')
@@ -155,6 +173,7 @@ const resetAllGoals = async () => {
   if (!confirm('همه اهداف حذف بشن؟ این کار قابل بازگشت نیست!')) return
   try {
     await api.delete('/goals/all/reset')
+    selectedGoal.value = null
     await fetchGoals()
     await fetchLogs()
     showToast('🗑️ همه اهداف حذف شدند')
@@ -180,7 +199,7 @@ onMounted(() => {
 
 <template>
   <div 
-    class="p-6 md:p-10 max-w-5xl mx-auto relative z-10 min-h-screen text-right" dir="rtl"
+    class="p-6 md:p-10 max-w-7xl mx-auto relative z-10 min-h-screen text-right" dir="rtl"
     :class="themeStore.currentTheme === 'persian-classic' ? 'page-bg-tasks' : themeStore.currentTheme === 'cyber-digital' ? 'page-bg-tasks' : ''"
   >
     <!-- الگوی اسلیمی -->
@@ -193,7 +212,7 @@ onMounted(() => {
 
     <!-- Toast Message -->
     <div v-if="message" 
-         class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl text-white font-semibold transition-all duration-300"
+         class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[200] px-6 py-3 rounded-xl shadow-2xl text-white font-semibold transition-all duration-300"
          :style="{ background: messageType === 'error' ? '#ef4444' : 'var(--accent)' }">
       {{ message }}
     </div>
@@ -201,8 +220,10 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between mb-6 relative">
       <div>
-        <h1 class="text-3xl font-extrabold" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''" :style="{ color: 'var(--text-primary)' }">اهداف کلان</h1>
-        <p :style="{ color: 'var(--text-secondary)' }">مسیر موفقیتت رو مشخص کن</p>
+        <h1 class="text-3xl font-extrabold flex items-center gap-2" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''" :style="{ color: 'var(--text-primary)' }">
+          <Target class="w-8 h-8 text-purple-400" /> اهداف کلان
+        </h1>
+        <p :style="{ color: 'var(--text-secondary)' }">مسیر موفقیتت رو در نمای دو ستونه و حالت تمرکز مدیریت کن</p>
       </div>
       <div class="flex gap-3">
         <button @click="resetAllGoals"
@@ -218,7 +239,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Recent Activity Timeline (اصلاح باگ ب۳: نمایش شمسی تاریخ لاگ‌ها) -->
+    <!-- Recent Activity Timeline -->
     <div class="mb-10 relative">
       <button @click="showLogs = !showLogs"
               class="flex items-center gap-2 text-sm mb-4 transition font-bold"
@@ -262,7 +283,6 @@ onMounted(() => {
                     }">
                 {{ log.action === 'created' ? 'ایجاد' : log.action === 'deleted' ? 'حذف' : 'بروزرسانی' }}
               </span>
-              <!-- تاریخ لاگ اصلاح‌شده به شمسی خوانا -->
               <span class="text-xs opacity-60 flex items-center gap-1" :style="{ color: 'var(--text-secondary)' }">
                 <Clock class="w-3 h-3" /> {{ formatDate(log.created_at) }}
               </span>
@@ -273,7 +293,7 @@ onMounted(() => {
     </div>
 
     <!-- Form Modal -->
-    <div v-if="showForm" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+    <div v-if="showForm" class="fixed inset-0 z-[180] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
       <div class="w-full max-w-2xl rounded-3xl p-8 max-h-[90vh] overflow-y-auto shadow-2xl border"
            :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
         
@@ -370,7 +390,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Goals List -->
+    <!-- Goals List (Empty State) -->
     <div v-if="goals.length === 0" class="text-center py-20 relative">
       <Target class="w-16 h-16 mx-auto mb-4 opacity-40" :style="{ color: 'var(--accent)' }" />
       <p class="text-xl font-bold mb-2" :style="{ color: 'var(--text-primary)' }">هنوز هیچ هدفی تعریف نکردی!</p>
@@ -382,68 +402,178 @@ onMounted(() => {
       </button>
     </div>
 
-    <div v-else class="space-y-6 relative">
+    <!-- 🌟 چیدمان اصلی دو ستونه اهداف (Two-Column Grid) -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
       <div v-for="goal in goals" :key="goal.id"
-           class="rounded-3xl p-6 transition-all duration-300 border shadow-sm"
+           @click="selectGoalForFocus(goal)"
+           class="rounded-3xl p-6 transition-all duration-300 border shadow-md hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
            :class="themeStore.currentTheme === 'persian-classic' ? 'card-ornament' : themeStore.currentTheme === 'cyber-digital' ? 'neon-border' : ''"
            :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
         
-        <!-- Header -->
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex-1">
-            <div class="flex items-center gap-3 mb-1">
-              <Target class="w-6 h-6" :style="{ color: 'var(--accent)' }" />
-              <h3 class="text-xl font-bold" :style="{ color: 'var(--text-primary)' }">{{ goal.title }}</h3>
-              <span :class="[priorityColors[goal.priority], 'text-xs font-bold flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-lg']">
+        <div>
+          <!-- Header -->
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-2.5 mb-2">
+                <Target class="w-6 h-6 group-hover:rotate-12 transition-transform" :style="{ color: 'var(--accent)' }" />
+                <h3 class="text-lg font-black group-hover:text-purple-400 transition" :style="{ color: 'var(--text-primary)' }">{{ goal.title }}</h3>
+              </div>
+              <span :class="[priorityColors[goal.priority], 'text-[11px] font-extrabold flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-lg w-fit']">
                 <Flag class="w-3 h-3" /> {{ priorityLabels[goal.priority] }}
               </span>
             </div>
-            <p v-if="goal.description" :style="{ color: 'var(--text-secondary)' }" class="text-sm opacity-80 mt-2 leading-relaxed">{{ goal.description }}</p>
+
+            <div class="flex gap-1" @click.stop>
+              <button @click="openEditForm(goal)" title="ویرایش" class="p-2 rounded-xl transition hover:bg-white/10 text-gray-400 hover:text-white">
+                <Edit3 class="w-4 h-4" />
+              </button>
+              <button @click="deleteGoal(goal.id)" title="حذف" class="p-2 rounded-xl transition hover:bg-red-500/10 text-gray-400 hover:text-red-400">
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div class="flex gap-2">
-<!-- دکمه جهش مستقیم به نقشه راه این هدف -->
-<button @click="goToRoadmap(goal.id)" 
-        class="px-3.5 py-1.5 rounded-xl font-bold text-xs text-white transition flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600">
-  <span>نقشه راه این هدف</span>
-  <span>➔</span>
-</button>          
-            <button @click="openEditForm(goal)" class="p-2 rounded-xl transition hover:bg-white/10" :style="{ color: 'var(--text-secondary)' }">
-              <Edit3 class="w-4 h-4" />
+
+          <p v-if="goal.description" :style="{ color: 'var(--text-secondary)' }" class="text-xs opacity-80 mb-4 line-clamp-2 leading-relaxed">{{ goal.description }}</p>
+
+          <!-- خلاصه فیلدها در کارت عمومی -->
+          <div class="space-y-2 border-t pt-3" :style="{ borderColor: 'var(--border)' }">
+            <div v-if="goal.next_step" class="flex items-center gap-2 text-xs font-bold" :style="{ color: 'var(--accent)' }">
+              <Check class="w-3.5 h-3.5 text-green-400" />
+              <span class="truncate">گام بعدی: {{ goal.next_step }}</span>
+            </div>
+            <div v-if="goal.target_date" class="flex items-center gap-2 text-xs opacity-70" :style="{ color: 'var(--text-secondary)' }">
+              <Calendar class="w-3.5 h-3.5 text-purple-400" />
+              <span>تحقق: {{ formatDate(goal.target_date) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- دکمه‌های پایینی کارت دو ستونه -->
+        <div class="flex items-center justify-between gap-2 mt-5 pt-3 border-t" :style="{ borderColor: 'var(--border)' }" @click.stop>
+          <button @click="selectGoalForFocus(goal)" class="px-3 py-1.5 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1.5">
+            <Eye class="w-3.5 h-3.5 text-amber-400" />
+            <span>تمرکز و کامل</span>
+          </button>
+
+          <button @click="goToRoadmap(goal.id)" 
+                  class="px-3.5 py-1.5 rounded-xl font-bold text-xs text-white transition flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600">
+            <span>نقشه راه</span>
+            <span>➔</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 🌟 حالت تمرکز هوشمند و سه‌بعدی روی هدف انتخابی (Spotlight Focus Mode) -->
+    <div v-if="selectedGoal" class="fixed inset-0 z-[150] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300" @click.self="closeFocusMode">
+      
+      <div class="w-full max-w-3xl rounded-3xl p-8 max-h-[90vh] overflow-y-auto border-2 border-purple-500/50 shadow-[0_0_60px_rgba(168,85,247,0.3)] bg-slate-900 text-white relative animate-in zoom-in-95 duration-300">
+        
+        <!-- دکمه‌های بالای کارت تمرکز -->
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
+          
+          <!-- دکمه اصلی بازگشت به لیست اهداف -->
+          <button @click="closeFocusMode" class="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black rounded-2xl shadow-xl transition flex items-center gap-2 hover:scale-105">
+            <ArrowRight class="w-5 h-5" />
+            <span>بازگشت به لیست اهداف</span>
+          </button>
+
+          <div class="flex items-center gap-2">
+            <button @click="openEditForm(selectedGoal)" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5">
+              <Edit3 class="w-4 h-4 text-purple-400" /> ویرایش
             </button>
-            <button @click="deleteGoal(goal.id)" class="p-2 rounded-xl transition hover:bg-red-500/10" :style="{ color: 'var(--text-secondary)' }">
-              <Trash2 class="w-4 h-4" />
+            <button @click="deleteGoal(selectedGoal.id)" class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold rounded-xl text-xs transition flex items-center gap-1.5">
+              <Trash2 class="w-4 h-4" /> حذف
             </button>
           </div>
         </div>
 
-        <!-- Info Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2 border-t" :style="{ borderColor: 'var(--border)' }">
-          <div v-if="goal.start_date" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
-            <Calendar class="w-4 h-4 text-blue-400" />
-            <span>شروع: {{ formatDate(goal.start_date) }}</span>
-          </div>
-          <div v-if="goal.target_date" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
-            <Calendar class="w-4 h-4 text-purple-400" />
-            <span>پایان: {{ formatDate(goal.target_date) }}</span>
-          </div>
-          <div v-if="goal.current_status" class="flex items-start gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
-            <Zap class="w-4 h-4 mt-0.5 text-amber-400" />
-            <span>وضعیت: {{ goal.current_status }}</span>
-          </div>
-          <div v-if="goal.current_obstacle" class="flex items-start gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
-            <AlertTriangle class="w-4 h-4 mt-0.5 text-red-400" />
-            <span>مانع: {{ goal.current_obstacle }}</span>
-          </div>
-          <div v-if="goal.next_step" class="flex items-start gap-2 text-sm font-bold" :style="{ color: 'var(--accent)' }">
-            <Check class="w-4 h-4 mt-0.5" />
-            <span>گام بعدی: {{ goal.next_step }}</span>
-          </div>
-          <div v-if="goal.success_criteria" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--text-secondary)' }">
-            <Target class="w-4 h-4 text-green-400" />
-            <span>معیار موفقیت: {{ goal.success_criteria }}</span>
-          </div>
+        <!-- نشان ویژه تمرکز -->
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-extrabold text-xs mb-3">
+          <Sparkles class="w-4 h-4 animate-spin" /> حالت تمرکز سه‌بعدی روی هدف
         </div>
+
+        <!-- عنوان هدف -->
+        <div class="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl md:text-3xl font-black text-white mb-2 flex items-center gap-3">
+              <Target class="w-8 h-8 text-purple-400" /> {{ selectedGoal.title }}
+            </h2>
+            <p v-if="selectedGoal.description" class="text-sm text-gray-300 leading-relaxed">{{ selectedGoal.description }}</p>
+          </div>
+          <span :class="[priorityColors[selectedGoal.priority], 'text-xs font-black bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5 whitespace-nowrap']">
+            <Flag class="w-4 h-4" /> {{ priorityLabels[selectedGoal.priority] }}
+          </span>
+        </div>
+
+        <!-- گرید کامل و بزرگ ۸ فیلد شناسنامه هدف -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          
+          <div v-if="selectedGoal.start_date" class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3">
+            <div class="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl"><Calendar class="w-5 h-5" /></div>
+            <div>
+              <p class="text-[10px] text-gray-400 font-bold">تاریخ تعریف هدف</p>
+              <p class="text-sm font-bold text-white">{{ formatDate(selectedGoal.start_date) }}</p>
+            </div>
+          </div>
+
+          <div v-if="selectedGoal.target_date" class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3">
+            <div class="p-2.5 bg-purple-500/20 text-purple-400 rounded-xl"><Calendar class="w-5 h-5" /></div>
+            <div>
+              <p class="text-[10px] text-gray-400 font-bold">تاریخ تحقق هدف</p>
+              <p class="text-sm font-bold text-white">{{ formatDate(selectedGoal.target_date) }}</p>
+            </div>
+          </div>
+
+          <div v-if="selectedGoal.current_status" class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <div class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl"><Zap class="w-5 h-5" /></div>
+            <div>
+              <p class="text-[10px] text-gray-400 font-bold">آخرین وضعیت</p>
+              <p class="text-sm font-bold text-amber-300">{{ selectedGoal.current_status }}</p>
+            </div>
+          </div>
+
+          <div v-if="selectedGoal.current_obstacle" class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <div class="p-2.5 bg-red-500/20 text-red-400 rounded-xl"><AlertTriangle class="w-5 h-5" /></div>
+            <div>
+              <p class="text-[10px] text-gray-400 font-bold">مانع فعلی تحقق</p>
+              <p class="text-sm font-bold text-red-300">{{ selectedGoal.current_obstacle }}</p>
+            </div>
+          </div>
+
+          <div v-if="selectedGoal.next_step" class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 md:col-span-2">
+            <div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl"><Check class="w-5 h-5" /></div>
+            <div>
+              <p class="text-[10px] text-emerald-400 font-bold">گام بعدی اجرایی</p>
+              <p class="text-base font-black text-emerald-300">{{ selectedGoal.next_step }}</p>
+            </div>
+          </div>
+
+          <div v-if="selectedGoal.success_criteria" class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3 md:col-span-2">
+            <div class="p-2.5 bg-green-500/20 text-green-400 rounded-xl"><Target class="w-5 h-5" /></div>
+            <div>
+              <p class="text-[10px] text-gray-400 font-bold">معیار موفقیت (چطور بفهمم موفق شدم؟)</p>
+              <p class="text-sm font-bold text-green-300">{{ selectedGoal.success_criteria }}</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- اکشن اصلی انتهای کارت تمرکز -->
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-white/10">
+          <button @click="goToRoadmap(selectedGoal.id)" class="w-full md:w-auto px-8 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black rounded-2xl shadow-xl transition flex items-center justify-center gap-2">
+            <span>ورود به اتاق عملیات و نقشه راه این هدف</span>
+            <span>➔</span>
+          </button>
+
+          <button @click="closeFocusMode" class="w-full md:w-auto px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl transition">
+            بستن حالت تمرکز
+          </button>
+        </div>
+
       </div>
     </div>
+
   </div>
 </template>

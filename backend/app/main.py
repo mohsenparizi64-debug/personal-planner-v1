@@ -32,6 +32,7 @@ from app.api.v1.books import router as books_router
 from app.api.v1.places import router as places_router
 from app.api.v1.backup import router as backup_router
 from app.api.v1.dashboard import router as dashboard_router
+from app.api.v1.ideas import router as ideas_router
 
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
@@ -44,6 +45,7 @@ app.include_router(books_router, prefix="/api/v1/books", tags=["books"])
 app.include_router(places_router, prefix="/api/v1/places", tags=["places"])
 app.include_router(backup_router, prefix="/api/v1/backup", tags=["backup"])
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
+app.include_router(ideas_router, prefix="/api/v1/ideas", tags=["ideas"])
 
 
 @app.get("/")

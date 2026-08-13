@@ -15,12 +15,14 @@ import PlacesPage from '@/pages/PlacesPage.vue'
 import BackupPage from '@/pages/BackupPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
 import CalendarPage from '@/pages/CalendarPage.vue'
+import IdeasPage from '@/pages/IdeasPage.vue' // <--- صفحه جدید ایده‌ها
 
 const routes = [
   { path: '/login', component: LoginPage, meta: { guest: true } },
   { path: '/register', component: RegisterPage, meta: { guest: true } },
   { path: '/forgot-password', component: ForgotPasswordPage, meta: { guest: true } },
   { path: '/', component: DashboardPage, meta: { requiresAuth: true } },
+  { path: '/ideas', component: IdeasPage, meta: { requiresAuth: true } }, // <--- مسیر جدید
   { path: '/tasks', component: TasksPage, meta: { requiresAuth: true } },
   { path: '/goals', component: GoalsPage, meta: { requiresAuth: true } },
   { path: '/roadmap', component: RoadmapPage, meta: { requiresAuth: true } },
@@ -30,7 +32,7 @@ const routes = [
   { path: '/places', component: PlacesPage, meta: { requiresAuth: true } },
   { path: '/backup', component: BackupPage, meta: { requiresAuth: true } },
   { path: '/profile', component: ProfilePage, meta: { requiresAuth: true } },
-  {path: '/calendar',name: 'Calendar',component: CalendarPage,meta: { requiresAuth: true }}
+  { path: '/calendar', name: 'Calendar', component: CalendarPage, meta: { requiresAuth: true } }
 ]
 
 const router = createRouter({

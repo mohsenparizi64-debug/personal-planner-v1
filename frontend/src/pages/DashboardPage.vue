@@ -1,101 +1,413 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { ListTodo, CheckCircle, Flame, TrendingUp, Zap } from 'lucide-vue-next'
+import api from '@/services/api'
+import { useRouter } from 'vue-router'
+import { 
+  ListTodo, CheckCircle, Flame, TrendingUp, Zap, AlertTriangle, 
+  Wallet, Lightbulb, Target, Calendar, Plus, RefreshCw, ArrowRight, Clock, Star
+} from 'lucide-vue-next'
+import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
+const router = useRouter()
 
-const stats = ref([
-  { title: 'تسک‌های امروز', value: 5, icon: ListTodo },
-  { title: 'تکمیل‌شده', value: 3, icon: CheckCircle },
-  { title: 'روزهای متوالی', value: 12, icon: Flame },
-  { title: 'پیشرفت هفته', value: '68%', icon: TrendingUp },
-])
+const isLoading = ref(true)
+const dashboardData = ref(null)
+const quickTaskTitle = ref('')
+
+const quotes = [
+  "بهترین زمان برای کاشت یک درخت ۲۰ سال پیش بود، دومین زمان خوب همین الان است.",
+  "موفقیت مجموعه‌ای از تلاش‌های کوچک است که هر روز تکرار می‌شوند.",
+  "تمرکز یعنی گفتن «نه» به ۱۰۰ ایده خوب دیگر.",
+  "انضباط شخصی یعنی انجام آنچه باید انجام شود، حتی زمانی که حوصله‌اش را ندارید."
+]
+const todayQuote = ref(quotes[Math.floor(Math.random() * quotes.length)])
+
+// سلام هوشمند زمان‌بندی‌شده
+const greetingMessage = computed(() => {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) return 'صبح به خیر! ☀️'
+  if (hour >= 12 && hour < 18) return 'عصر به خیر! 🌤️'
+  return 'شب به خیر! 🌙'
+})
+
+const fetchDashboard = async () => {
+  try {
+    isLoading.value = true
+    const response = await api.get('/dashboard/overview')
+    dashboardData.value = response.data
+  } catch (error) {
+    console.error('خطا در دریافت اطلاعات برج دیده‌بانی:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// تیک زدن فوری تسک از داشبورد
+const toggleTask = async (task) => {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const updatedStatus = !task.is_completed
+    await api.put(`/tasks/${task.id}`, {
+      ...task,
+      is_completed: updatedStatus,
+      last_action_date: updatedStatus ? today : null
+    })
+    fetchDashboard()
+  } catch (e) {
+    alert('خطا در بروزرسانی تسک')
+  }
+}
+
+// تمدید مهلت تسک عقب‌افتاده به امروز
+const extendToToday = async (task) => {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    await api.put(`/tasks/${task.id}`, {
+      ...task,
+      due_date: today
+    })
+    fetchDashboard()
+  } catch (e) {
+    alert('خطا در تمدید مهلت تسک')
+  }
+}
+
+// ثبت سریع تسک برای امروز
+const addQuickTask = async () => {
+  if (!quickTaskTitle.value.trim()) return
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    await api.post('/tasks', {
+      title: quickTaskTitle.value,
+      register_date: today,
+      due_date: today,
+      status: 'not_started',
+      priority: 0
+    })
+    quickTaskTitle.value = ''
+    fetchDashboard()
+  } catch (e) {
+    alert('خطا در ثبت تسک سریع')
+  }
+}
+
+// محاسبه حداکثر مقدار برای نرمال‌سازی نمودار میله‌ای
+const maxWeeklyValue = computed(() => {
+  if (!dashboardData.value?.weekly_activity) return 10
+  const maxComp = Math.max(...dashboardData.value.weekly_activity.map(d => d.completed), 1)
+  return Math.max(maxComp, 5)
+})
+
+onMounted(() => {
+  fetchDashboard()
+})
 </script>
 
 <template>
-  <div class="p-6 md:p-10 max-w-6xl mx-auto">
-    <!-- Welcome -->
-    <div class="mb-10" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''">
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center"
-             :class="themeStore.currentTheme === 'persian-classic' ? 'bg-amber-100' : themeStore.currentTheme === 'cyber-digital' ? 'bg-green-500/20 neon-border' : 'bg-purple-500/20'">
-          <Zap class="w-5 h-5" :style="{ color: 'var(--accent)' }" />
-        </div>
-        <h1 class="text-3xl font-extrabold">روزت به خیر! 👋</h1>
-      </div>
-      <p :style="{ color: 'var(--text-secondary)' }">امروز یه روز عالی برای پیشرفته.</p>
-    </div>
-
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-      <div 
-        v-for="stat in stats" 
-        :key="stat.title"
-        :class="[
-          'relative overflow-hidden rounded-2xl p-6 group transition-all duration-300',
-          themeStore.currentTheme === 'persian-classic' ? 'card-ornament' : 
-          themeStore.currentTheme === 'cyber-digital' ? 'neon-border' : 'glass-card'
-        ]"
-        :style="{ background: 'var(--bg-card)' }"
-      >
-        <div class="flex items-center justify-between">
+  <div class="p-6 md:p-10 max-w-7xl mx-auto space-y-8 text-right" dir="rtl">
+    
+    <!-- هدر برج دیده‌بانی -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-card p-6 rounded-3xl border border-white/10 shadow-2xl">
+      <div>
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-purple-500 to-blue-500 shadow-lg shadow-purple-500/30">
+            <Zap class="w-6 h-6 text-white" />
+          </div>
           <div>
-            <p :style="{ color: 'var(--text-secondary)' }" class="text-sm mb-1">{{ stat.title }}</p>
-            <p class="text-3xl font-extrabold" :style="{ color: 'var(--text-primary)' }">{{ stat.value }}</p>
-          </div>
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center" :style="{ background: 'var(--bg-hover)' }">
-            <component :is="stat.icon" class="w-6 h-6" :style="{ color: 'var(--accent)' }" />
+            <h1 class="text-2xl md:text-3xl font-black text-white">{{ greetingMessage }}</h1>
+            <p class="text-xs md:text-sm text-gray-400 mt-1">برج دیده‌بانی و اتاق فرمان برنامه‌ریزی شخصی شما</p>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- تم کلاسیک: تزئینات اضافی -->
-    <div v-if="themeStore.currentTheme === 'persian-classic'" class="text-center mb-10">
-      <p class="text-2xl font-bold" style="color: var(--accent); font-family: BNazanin, serif;">
-        به نام خداوند جان و خرد
-      </p>
-      <div class="flex justify-center gap-2 mt-2">
-        <span class="text-4xl">🏛️</span>
-        <span class="text-4xl">🕌</span>
-        <span class="text-4xl">🦁</span>
+      <!-- کادر جمله انگیزشی روز -->
+      <div class="max-w-md bg-white/5 border border-white/10 p-4 rounded-2xl backdrop-blur-md">
+        <p class="text-xs text-amber-400 font-bold mb-1 flex items-center gap-1">
+          <Star class="w-3.5 h-3.5 fill-amber-400" /> الهام‌بخش روز:
+        </p>
+        <p class="text-xs text-gray-200 leading-relaxed italic">« {{ todayQuote }} »</p>
       </div>
     </div>
 
-    <!-- تم رباتیک: تزئینات اضافی -->
-    <div v-if="themeStore.currentTheme === 'cyber-digital'" class="mb-10">
-      <div class="flex items-center gap-2 neon-text">
-        <span class="text-2xl">⚡</span>
-        <p class="text-lg font-mono">SYS::ONLINE // NODES: 4 // UPLINK: STABLE</p>
-      </div>
+    <div v-if="isLoading" class="text-center py-20 text-gray-400">
+      <RefreshCw class="w-10 h-10 animate-spin mx-auto mb-3 text-purple-400" />
+      <p class="font-bold text-sm">در حال دریافت و تحلیل داده‌های برج دیده‌بانی...</p>
     </div>
 
-    <!-- Quick Tasks -->
-    <div 
-      :class="[
-        'rounded-2xl p-6',
-        themeStore.currentTheme === 'persian-classic' ? 'card-ornament' : 
-        themeStore.currentTheme === 'cyber-digital' ? 'neon-border' : 'glass-card'
-      ]"
-      :style="{ background: 'var(--bg-card)' }"
-    >
-      <h2 class="text-lg font-bold mb-4 flex items-center gap-2" :style="{ color: 'var(--text-primary)' }">
-        <ListTodo class="w-5 h-5" :style="{ color: 'var(--accent)' }" />
-        کارهای امروز
-      </h2>
-      <div class="space-y-2">
-        <div class="flex items-center gap-3 p-3 rounded-xl transition cursor-pointer" :style="{ background: 'var(--bg-hover)' }">
-          <div class="w-5 h-5 rounded-lg border-2 flex-shrink-0" :style="{ borderColor: 'var(--border)' }"></div>
-          <span :style="{ color: 'var(--text-primary)' }">مطالعه معماری FastAPI</span>
-        </div>
-        <div class="flex items-center gap-3 p-3 rounded-xl transition cursor-pointer" :style="{ background: 'var(--bg-hover)' }">
-          <div class="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0" :style="{ background: 'var(--accent)' }">
-            <CheckCircle class="w-3 h-3 text-white" />
+    <div v-else-if="dashboardData" class="space-y-8">
+
+      <!-- کارت‌های آمار زنده -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+        
+        <div class="glass-card p-5 rounded-3xl border border-white/10 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-400 font-bold mb-1">کارهای امروز</p>
+            <p class="text-2xl md:text-3xl font-black text-white">
+              {{ dashboardData.summary.today_completed }} / {{ dashboardData.summary.today_total }}
+            </p>
           </div>
-          <span :style="{ color: 'var(--text-secondary)', textDecoration: 'line-through' }">ورزش صبحگاهی</span>
+          <div class="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center border border-blue-500/30">
+            <ListTodo class="w-6 h-6" />
+          </div>
         </div>
+
+        <div class="glass-card p-5 rounded-3xl border border-red-500/30 bg-red-500/5 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-red-400 font-bold mb-1">عقب‌افتاده‌ها 🚨</p>
+            <p class="text-2xl md:text-3xl font-black text-red-400">
+              {{ dashboardData.summary.overdue_count }}
+            </p>
+          </div>
+          <div class="w-12 h-12 bg-red-500/20 text-red-400 rounded-2xl flex items-center justify-center border border-red-500/30">
+            <AlertTriangle class="w-6 h-6 animate-pulse" />
+          </div>
+        </div>
+
+        <div class="glass-card p-5 rounded-3xl border border-white/10 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-400 font-bold mb-1">تحقق کارهای دوره‌ای</p>
+            <p class="text-2xl md:text-3xl font-black text-emerald-400">
+              {{ dashboardData.summary.recurring_completion_rate }}%
+            </p>
+          </div>
+          <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center border border-emerald-500/30">
+            <TrendingUp class="w-6 h-6" />
+          </div>
+        </div>
+
+        <div class="glass-card p-5 rounded-3xl border border-white/10 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-400 font-bold mb-1">کل دارایی مالی</p>
+            <p class="text-lg md:text-xl font-black text-purple-300">
+              {{ dashboardData.summary.total_balance.toLocaleString('fa-IR') }}
+            </p>
+          </div>
+          <div class="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center border border-purple-500/30">
+            <Wallet class="w-6 h-6" />
+          </div>
+        </div>
+
       </div>
+
+      <!-- 📊 بخش نمودارهای گرافیکی متحرک -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- نمودار ۱: روند فعالیت ۷ روز گذشته (Bar Chart) -->
+        <div class="lg:col-span-2 glass-card p-6 rounded-3xl border border-white/10 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-black text-white flex items-center gap-2">
+              <TrendingUp class="w-5 h-5 text-blue-400" /> نمودار فعالیت ۷ روز گذشته
+            </h3>
+            <span class="text-xs text-gray-400">تسک‌های تکمیل‌شده در هفته</span>
+          </div>
+
+          <!-- رسم چارت میله‌ای با SVG -->
+          <div class="h-48 flex items-end justify-between gap-2 pt-4 px-2 border-b border-white/10">
+            <div 
+              v-for="day in dashboardData.weekly_activity" 
+              :key="day.date" 
+              class="flex-1 flex flex-col items-center h-full justify-end group relative"
+            >
+              <!-- Tooltip -->
+              <div class="absolute -top-8 opacity-0 group-hover:opacity-100 transition bg-slate-900 border border-white/20 px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-20">
+                {{ day.completed }} تسک تکمیل‌شده
+              </div>
+
+              <!-- Bar -->
+              <div 
+                class="w-full max-w-[32px] bg-gradient-to-t from-blue-600 to-purple-500 rounded-t-xl transition-all duration-500 group-hover:brightness-125 shadow-lg shadow-blue-500/20"
+                :style="{ height: Math.max((day.completed / maxWeeklyValue * 100), 8) + '%' }"
+              ></div>
+
+              <span class="text-[10px] font-bold text-gray-400 mt-2">{{ day.day_name }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- نمودار ۲: دونات تفکیک تسک‌ها (Donut Chart) -->
+        <div class="glass-card p-6 rounded-3xl border border-white/10 flex flex-col justify-between">
+          <h3 class="text-lg font-black text-white flex items-center gap-2 mb-4">
+            <Flame class="w-5 h-5 text-amber-400" /> تفکیک انواع تسک‌ها
+          </h3>
+
+          <!-- رسم چارت دونات بصری با SVG -->
+          <div class="relative flex items-center justify-center my-2">
+            <svg class="w-36 h-36 transform -rotate-90" viewBox="0 0 36 36">
+              <path class="text-gray-800" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="text-purple-500" stroke-dasharray="60, 100" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="text-amber-400" stroke-dasharray="25, 100" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <div class="absolute text-center">
+              <span class="text-xl font-black text-white">{{ dashboardData.summary.total_tasks_count }}</span>
+              <p class="text-[10px] text-gray-400">کل تسک‌ها</p>
+            </div>
+          </div>
+
+          <!-- راهنمای نمودار -->
+          <div class="space-y-2 text-xs pt-2 border-t border-white/5">
+            <div class="flex items-center justify-between text-gray-300">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> تسک‌های یک‌باره:</span>
+              <span class="font-bold text-white">{{ dashboardData.summary.fixed_tasks_count }}</span>
+            </div>
+            <div class="flex items-center justify-between text-gray-300">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> تسک‌های دوره‌ای:</span>
+              <span class="font-bold text-white">{{ dashboardData.summary.recurring_tasks_count }}</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 🚨 کارهای عقب‌افتاده + کارهای امروز -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- کارهای عقب‌افتاده -->
+        <div class="glass-card p-6 rounded-3xl border border-red-500/30 bg-red-500/5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-black text-red-400 flex items-center gap-2">
+              <AlertTriangle class="w-5 h-5 animate-pulse" /> کارهای عقب‌افتاده نیاز به اقدام
+            </h3>
+            <span class="text-xs bg-red-500/20 text-red-300 px-2.5 py-1 rounded-full font-bold">
+              {{ dashboardData.overdue_tasks.length }} مورد
+            </span>
+          </div>
+
+          <div v-if="dashboardData.overdue_tasks.length === 0" class="text-center py-8 text-gray-400 text-xs">
+            🎉 عالیه! هیچ کار عقب‌افتاده‌ای نداری.
+          </div>
+
+          <div v-else class="space-y-3 max-h-64 overflow-y-auto pr-1">
+            <div 
+              v-for="task in dashboardData.overdue_tasks" 
+              :key="task.id"
+              class="p-3.5 rounded-2xl bg-white/5 border border-red-500/20 flex items-center justify-between gap-3 hover:bg-white/10 transition"
+            >
+              <div>
+                <p class="text-xs font-bold text-white mb-1">{{ task.title }}</p>
+                <p class="text-[10px] text-red-300">مهلت: {{ formatDate(task.due_date) }}</p>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <button @click="extendToToday(task)" class="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[10px] font-bold hover:bg-amber-500/30 transition">
+                  تمدید به امروز
+                </button>
+                <button @click="toggleTask(task)" class="px-2.5 py-1 bg-green-500/20 text-green-300 border border-green-500/30 rounded-lg text-[10px] font-bold hover:bg-green-500/30 transition">
+                  تکمیل
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- کارهای امروز + ثبت سریع -->
+        <div class="glass-card p-6 rounded-3xl border border-white/10 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-black text-white flex items-center gap-2">
+                <ListTodo class="w-5 h-5 text-blue-400" /> کارهای امروز
+              </h3>
+              <router-link to="/tasks" class="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                اتاق عملیات <ArrowRight class="w-3.5 h-3.5" />
+              </router-link>
+            </div>
+
+            <div v-if="dashboardData.today_tasks.length === 0" class="text-center py-6 text-gray-400 text-xs">
+              هیچ تسکی برای امروز ثبت نشده است.
+            </div>
+
+            <div v-else class="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <div 
+                v-for="task in dashboardData.today_tasks" 
+                :key="task.id"
+                @click="toggleTask(task)"
+                class="p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition cursor-pointer flex items-center justify-between border border-white/5"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition" :class="task.is_completed ? 'bg-purple-600 border-purple-600 text-white' : 'border-white/30'">
+                    <CheckCircle v-if="task.is_completed" class="w-3.5 h-3.5" />
+                  </div>
+                  <span class="text-xs font-bold text-white" :class="task.is_completed ? 'line-through opacity-40' : ''">{{ task.title }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ثبت سریع تسک امروز -->
+          <form @submit.prevent="addQuickTask" class="mt-4 pt-3 border-t border-white/10 flex items-center gap-2">
+            <input 
+              v-model="quickTaskTitle" 
+              type="text" 
+              placeholder="ثبت سریع تسک جدید برای امروز..." 
+              class="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            <button type="submit" class="p-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition">
+              <Plus class="w-4 h-4" />
+            </button>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- 🎯 پیشرفت واقعی اهداف + ایده پیشنهادی روز -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- پیشرفت واقعی اهداف کلان -->
+        <div class="lg:col-span-2 glass-card p-6 rounded-3xl border border-white/10">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-black text-white flex items-center gap-2">
+              <Target class="w-5 h-5 text-purple-400" /> پیشرفت واقعی اهداف کلان
+            </h3>
+            <router-link to="/goals" class="text-xs text-purple-400 hover:underline">مشاهده همه اهداف</router-link>
+          </div>
+
+          <div v-if="dashboardData.goals.length === 0" class="text-center py-6 text-gray-400 text-xs">
+            هیچ هدفی تعریف نشده است.
+          </div>
+
+          <div v-else class="space-y-4">
+            <div v-for="goal in dashboardData.goals" :key="goal.id" class="p-4 rounded-2xl bg-white/5 border border-white/10">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-bold text-white">{{ goal.title }}</span>
+                <span class="text-xs font-black text-purple-400">{{ goal.calculated_progress }}%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-black/20 overflow-hidden mb-2">
+                <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-700" :style="{ width: goal.calculated_progress + '%' }"></div>
+              </div>
+              <div v-if="goal.next_step" class="text-[10px] text-gray-400">
+                📌 گام بعدی: <span class="text-gray-200 font-bold">{{ goal.next_step }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ایده برتر روز -->
+        <div class="glass-card p-6 rounded-3xl border border-amber-500/30 bg-amber-500/5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-black text-amber-400 flex items-center gap-2">
+                <Lightbulb class="w-5 h-5" /> ایده برتر روز
+              </h3>
+              <router-link to="/ideas" class="text-xs text-amber-400 hover:underline">بانک ایده‌ها</router-link>
+            </div>
+
+            <div v-if="dashboardData.idea_of_the_day">
+              <h4 class="text-base font-bold text-white mb-2">{{ dashboardData.idea_of_the_day.title }}</h4>
+              <p class="text-xs text-gray-300 leading-relaxed line-clamp-4">{{ dashboardData.idea_of_the_day.description || 'بدون توضیحات' }}</p>
+            </div>
+            <div v-else class="text-center py-8 text-gray-400 text-xs">
+              هیچ ایده‌ای ثبت نشده است.
+            </div>
+          </div>
+
+          <router-link to="/ideas" class="mt-4 w-full py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition text-center block">
+            ورود به بانک ایده‌ها و پرورش ایده
+          </router-link>
+        </div>
+
+      </div>
+
     </div>
   </div>
 </template>

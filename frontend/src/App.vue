@@ -1,12 +1,12 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 import AnalogClock from '@/components/AnalogClock.vue'
 import { 
   LayoutDashboard, ListTodo, Target, Wallet, Film, MapPin, BookOpen, Download,
-  Menu, X, LogOut, Calendar, Clock, Palette 
+  Menu, X, LogOut, Calendar, Clock, Palette, Lock, KeyRound, Lightbulb 
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -21,8 +21,20 @@ const currentDate = ref('')
 const persianDate = ref('')
 const dayOfWeek = ref('')
 
+// متغیرها و استیت‌های مربوط به انقضای ۵ دقیقه عدم فعالیت
+const showExpiredModal = ref(false)
+const expiredEmail = ref('')
+const expiredPassword = ref('')
+const expiredLoginLoading = ref(false)
+const expiredLoginError = ref('')
+
+// زمان عدم فعالیت: ۵ دقیقه (۳۰۰,۰۰۰ میلی‌ثانیه)
+const INACTIVITY_LIMIT = 5 * 60 * 1000 
+let inactivityTimer = null
+
 const menuItems = [
   { path: '/', label: 'داشبورد', icon: LayoutDashboard },
+  { path: '/ideas', label: 'ایده‌ها', icon: Lightbulb },
   { path: '/tasks', label: 'تسک‌ها', icon: ListTodo },
   { path: '/goals', label: 'اهداف', icon: Target },
   { path: '/roadmap', label: 'نقشه راه', icon: MapPin },
@@ -42,15 +54,114 @@ function updateDateTime() {
   persianDate.value = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric' }).format(now)
 }
 
+// -------------------------------------------------------------
+// موتور قدرتمند پایش فعالیت کاربر (با پشتیبانی کامل از تایپ فرم‌ها)
+// -------------------------------------------------------------
+const resetInactivityTimer = () => {
+  if (!authStore.isAuthenticated) {
+    if (inactivityTimer) clearTimeout(inactivityTimer)
+    return
+  }
+
+  if (inactivityTimer) clearTimeout(inactivityTimer)
+
+  inactivityTimer = setTimeout(() => {
+    handleInactivityTimeout()
+  }, INACTIVITY_LIMIT)
+}
+
+const handleInactivityTimeout = () => {
+  if (authStore.isAuthenticated) {
+    if (authStore.user?.email) {
+      expiredEmail.value = authStore.user.email
+    }
+    authStore.expireSession()
+    showExpiredModal.value = true
+  }
+}
+
+// لیست کامل رویدادهای تایپ، فوکوس، کلیک، لمس و اسکرول
+const activityEvents = [
+  'mousemove', 'mousedown', 'keydown', 'keyup', 
+  'input', 'change', 'focusin', 'touchstart', 'scroll'
+]
+
+const setupActivityListeners = () => {
+  activityEvents.forEach(event => {
+    // استفاده از فاز Capture (اولویت بالا) تا حتی تایپ درون فرم‌های عمیق هم ثبت شود
+    window.addEventListener(event, resetInactivityTimer, { capture: true, passive: true })
+  })
+}
+
+const removeActivityListeners = () => {
+  activityEvents.forEach(event => {
+    window.removeEventListener(event, resetInactivityTimer, { capture: true })
+  })
+  if (inactivityTimer) clearTimeout(inactivityTimer)
+}
+
+// پایش تغییر پیام انقضا در استور (اگر از سمت api.js فراخوانی شود)
+watch(() => authStore.sessionExpiredMessage, (newMsg) => {
+  if (newMsg) {
+    if (authStore.user?.email) {
+      expiredEmail.value = authStore.user.email
+    }
+    showExpiredModal.value = true
+  }
+})
+
+const handleExpiredLogin = async () => {
+  try {
+    expiredLoginLoading.value = true
+    expiredLoginError.value = ''
+    
+    if (!expiredEmail.value.trim() || !expiredPassword.value.trim()) {
+      expiredLoginError.value = '⚠️ لطفاً ایمیل و رمز عبور را وارد کنید'
+      return
+    }
+
+    await authStore.login(expiredEmail.value, expiredPassword.value)
+    showExpiredModal.value = false
+    expiredPassword.value = ''
+    resetInactivityTimer()
+  } catch (error) {
+    const status = error.response?.status
+    if (status === 401) {
+      expiredLoginError.value = '❌ رمز عبور اشتباه است'
+    } else {
+      expiredLoginError.value = '❌ خطا در برقراری ارتباط با سرور'
+    }
+  } finally {
+    expiredLoginLoading.value = false
+  }
+}
+
 let timer = null
+
 onMounted(() => {
   updateDateTime()
   timer = setInterval(updateDateTime, 1000)
+  
   if (authStore.isAuthenticated) {
     authStore.fetchUser()
+    resetInactivityTimer()
+  }
+
+  setupActivityListeners()
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+  removeActivityListeners()
+})
+
+watch(() => authStore.isAuthenticated, (newVal) => {
+  if (newVal) {
+    resetInactivityTimer()
+  } else {
+    if (inactivityTimer) clearTimeout(inactivityTimer)
   }
 })
-onUnmounted(() => clearInterval(timer))
 
 const handleLogout = () => {
   showLogoutConfirm.value = true
@@ -59,6 +170,7 @@ const handleLogout = () => {
 const confirmLogout = () => {
   authStore.logout()
   showLogoutConfirm.value = false
+  showExpiredModal.value = false
   router.push('/login')
 }
 
@@ -146,30 +258,24 @@ const cancelLogout = () => {
               :style="{ background: 'rgba(15, 23, 42, 0.85)', borderColor: 'var(--border)' }">
         <div class="flex items-center justify-between px-6 py-3.5">
           
-          
           <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 hover:bg-white/5 rounded-xl transition text-white">
             <Menu v-if="!sidebarOpen" class="w-7 h-7" /><X v-else class="w-7 h-7" />
           </button>
 
-          
           <div class="flex items-center gap-4 md:gap-6">
-            
             <AnalogClock />
 
-            
             <div class="hidden md:flex items-center gap-2.5 px-4 py-2 rounded-2xl border bg-white/5 backdrop-blur-md text-sm md:text-base font-black shadow-inner"
                  :style="{ borderColor: 'var(--border)', color: 'var(--text-primary)' }">
               <Calendar class="w-5 h-5 text-purple-400" />
               <span>{{ dayOfWeek }} {{ persianDate }}</span>
             </div>
 
-            
             <div class="hidden lg:flex items-center gap-2.5 px-4 py-2 rounded-2xl border bg-white/5 backdrop-blur-md text-xs md:text-sm font-bold opacity-80"
                  :style="{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }">
               <span>{{ currentDate }}</span>
             </div>
 
-            
             <div class="flex items-center gap-2.5 px-5 py-2 rounded-2xl border bg-blue-500/10 backdrop-blur-md text-xl md:text-2xl font-black shadow-xl"
                  :style="{ borderColor: 'rgba(59, 130, 246, 0.4)', color: 'var(--accent)' }">
               <Clock class="w-6 h-6 text-blue-400 animate-pulse" />
@@ -177,7 +283,6 @@ const cancelLogout = () => {
             </div>
           </div>
 
-          
           <router-link to="/profile" class="flex items-center gap-3.5 p-2 pr-4 rounded-2xl border bg-white/5 hover:bg-white/10 transition backdrop-blur-md group"
                        :style="{ borderColor: 'var(--border)' }">
             <div class="text-left hidden md:block">
@@ -212,7 +317,67 @@ const cancelLogout = () => {
       </div>
     </main>
 
-    <!-- مودال تأیید خروج -->
+    <!-- کادر اتوماتیک ورود به سایت پس از ۵ دقیقه انقضا -->
+    <div v-if="showExpiredModal" class="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div class="w-full max-w-md rounded-3xl p-8 text-center shadow-2xl border bg-slate-900 border-yellow-500/30 animate-in fade-in zoom-in duration-300">
+        <div class="w-16 h-16 bg-yellow-500/20 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-yellow-500/30">
+          <Lock class="w-8 h-8 animate-bounce" />
+        </div>
+        
+        <h3 class="text-2xl font-black text-white mb-2">انقضای کلمه عبور</h3>
+        
+        <!-- پیام اختصاصی مدنظر شما -->
+        <div class="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-2xl text-yellow-300 text-sm font-bold mb-6">
+          ⚠️ با توجه به منقضی شدن کلمه عبور مجددا وارد شوید.
+        </div>
+
+        <form @submit.prevent="handleExpiredLogin" class="space-y-4 text-right">
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">ایمیل</label>
+            <input 
+              v-model="expiredEmail"
+              type="email" 
+              required
+              class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-purple-500 outline-none transition"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">رمز عبور</label>
+            <input 
+              v-model="expiredPassword"
+              type="password" 
+              required
+              class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-purple-500 outline-none transition"
+              placeholder="********"
+            />
+          </div>
+
+          <div v-if="expiredLoginError" class="text-xs p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-bold">
+            {{ expiredLoginError }}
+          </div>
+
+          <button 
+            type="submit" 
+            :disabled="expiredLoginLoading"
+            class="w-full py-3.5 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black rounded-xl shadow-lg transition duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <KeyRound class="w-5 h-5" />
+            <span v-if="!expiredLoginLoading">ورود مجدد</span>
+            <span v-else>در حال بررسی...</span>
+          </button>
+        </form>
+
+        <div class="mt-4 pt-4 border-t border-white/10 text-center">
+          <button @click="confirmLogout" class="text-xs text-gray-400 hover:text-white transition">
+            انصراف و خروج کامل از حساب
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- مودال تأیید خروج دستی -->
     <div v-if="showLogoutConfirm" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div class="w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl border" :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
         <div class="text-5xl mb-4">🚪</div>

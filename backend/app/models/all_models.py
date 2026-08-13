@@ -37,7 +37,6 @@ class Task(Base, TimestampMixin):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     owner = relationship("User")
-    # اصلاح برای رفع خطایی که فرستادید:
     sub_goal = relationship("SubGoal", back_populates="main_tasks")
     goal = relationship("Goal", back_populates="main_tasks")
 
@@ -87,7 +86,6 @@ class SubGoal(Base, TimestampMixin):
     owner_id = Column(Integer, ForeignKey("users.id"))
     
     goal = relationship("Goal", back_populates="sub_goals")
-    # اصلاح شده: تعریف ویژگی main_tasks که قبلاً گم شده بود
     dedicated_tasks = relationship("SubGoalTask", back_populates="sub_goal", cascade="all, delete-orphan")
     main_tasks = relationship("Task", back_populates="sub_goal")
 
@@ -150,7 +148,7 @@ class Movie(Base, TimestampMixin):
     title = Column(String, nullable=False)
     movie_type = Column(String, default="movie")
     category = Column(String, nullable=True)
-    origin = Column(String, default="foreign")    # <--- اضافه شد (iranian / foreign)
+    origin = Column(String, default="foreign")
     register_date = Column(Date, nullable=True)
     watch_date = Column(Date, nullable=True)
     rating = Column(Integer, default=0)
@@ -192,3 +190,28 @@ class Place(Base, TimestampMixin):
     is_favorite = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User")
+
+# ==========================================
+# کلاس جدید: بانک ایده‌ها (Idea)
+# ==========================================
+class Idea(Base, TimestampMixin):
+    __tablename__ = "ideas"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String, default="عمومی")
+    status = Column(String, default="raw")             # raw (خام), in_review (در حال بررسی), ready (جاه‌طلبانه/آماده اجرا), archived (بایگانی)
+    excitement_rating = Column(Integer, default=3)      # درجه هیجان (۱ تا ۵ ستاره)
+    reference_links = Column(Text, nullable=True)      # لینک‌ها و منابع الگوبرداری
+    tags = Column(String, nullable=True)               # هشتگ‌ها/برچسب‌ها (با کاما جدا شده)
+    is_archived = Column(Boolean, default=False)
+    
+    # لینک اختیاری به هدف و اتصال‌های تبدیل هوشمند
+    goal_id = Column(Integer, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
+    converted_to_goal_id = Column(Integer, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
+    converted_to_task_id = Column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    owner = relationship("User")
+    goal = relationship("Goal", foreign_keys=[goal_id])
