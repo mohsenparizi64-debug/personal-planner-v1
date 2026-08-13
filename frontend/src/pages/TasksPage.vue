@@ -93,21 +93,18 @@ const getNextActionDate = (task) => {
 const isTaskOverdue = (task) => {
   if (task.is_completed || task.status === 'completed') return false
 
-  // ۱. دریافت تاریخ امروز به شمسی استاندارد (مثلاً 1405-05-21)
   const now = new Date()
   const todayShamsiStr = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { 
     year: 'numeric', month: '2-digit', day: '2-digit' 
   }).format(now)
   const todayClean = toEngNums(todayShamsiStr)
 
-  // ۲. مبنا قرار دادن «تاریخ اقدام بعدی» موثر (چه ساده چه دوره‌ای)
   let effectiveDueDate = isTaskRecurring(task) ? getNextActionDate(task) : (task.due_date || task.register_date)
 
   if (!effectiveDueDate) return false
 
   let taskDueClean = toEngNums(effectiveDueDate)
 
-  // اگر تاریخ میلادی است (با 202x شروع می‌شود)، آن را به شمسی تبدیل کن
   if (taskDueClean.startsWith('202')) {
     const gDate = new Date(taskDueClean)
     const jStr = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { 
@@ -116,7 +113,6 @@ const isTaskOverdue = (task) => {
     taskDueClean = toEngNums(jStr)
   }
 
-  // مقایسه: آیا تاریخ اقدام بعدی قبل از امروز است؟
   return taskDueClean < todayClean
 }
 
@@ -273,12 +269,14 @@ const validateForm = () => {
   validationErrors.value = {}
   let hasError = false
   if (!form.value.title || !form.value.title.trim()) { validationErrors.value.title = 'عنوان تسک الزامی است'; hasError = true }
+  if (!form.value.goal_id) { validationErrors.value.goal_id = 'انتخاب هدف کلان الزامی است'; hasError = true }
+  if (!form.value.sub_goal_id) { validationErrors.value.sub_goal_id = 'انتخاب گام عملیاتی الزامی است'; hasError = true }
   return !hasError
 }
 
 const saveTask = async () => {
   if (!validateForm()) {
-    showToast('⚠️ لطفاً عنوان تسک را وارد کنید', 'error');
+    showToast('⚠️ لطفاً تمام فیلدهای الزامی (عنوان، هدف کلان و گام) را انتخاب کنید', 'error');
     return;
   }
 
@@ -575,81 +573,85 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 📚📚 مودال راهنمای فارسی جامع -->
-    <div v-if="showHelpModal" class="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300" @click.self="showHelpModal = false">
-      <div class="w-full max-w-4xl rounded-3xl p-6 md:p-8 max-h-[90vh] overflow-y-auto border-2 border-amber-500/40 shadow-[0_0_60px_rgba(245,158,11,0.2)] bg-slate-900 text-white relative">
-        <div class="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
-          <div class="flex items-center gap-3">
-            <div class="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              <BookOpen class="w-6 h-6 animate-pulse" />
+    <!-- 🚀 Teleport برای مودال راهنما -->
+    <Teleport to="body">
+      <div v-if="showHelpModal" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300" @click.self="showHelpModal = false">
+        <div class="w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 md:p-8 border-2 border-amber-500/40 shadow-[0_0_60px_rgba(245,158,11,0.2)] bg-slate-900 text-white relative">
+          <div class="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
+            <div class="flex items-center gap-3">
+              <div class="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <BookOpen class="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <h3 class="text-xl md:text-2xl font-black text-white">راهنمای جامع تعریف تسک‌ها و منطق برنامه</h3>
+                <p class="text-xs text-gray-400 mt-1">آموزش گام‌به‌گام تعریف تسک‌های ساده و دوره‌ای با مثال‌های عملی</p>
+              </div>
             </div>
+            <button @click="showHelpModal = false" class="p-2 text-gray-400 hover:text-white"><X class="w-6 h-6" /></button>
+          </div>
+
+          <div class="space-y-8 text-right">
+            <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+              <h4 class="text-base font-black text-amber-400 flex items-center gap-2">
+                <Info class="w-5 h-5" /> منطق محاسباتی تاریخ‌ها و تکرار تسک‌ها
+              </h4>
+              <ul class="text-xs md:text-sm text-gray-300 space-y-2 leading-relaxed list-disc list-inside">
+                <li><strong class="text-white">تسک‌های ساده (یک‌باره):</strong> یک تاریخ ثبت و مدت زمان دارند. پس از تیک خوردن، وضعیت به «تکمیل‌شده» تغییر کرده و تاریخ انجام در «آخرین اقدام» ثبت می‌شود.</li>
+                <li><strong class="text-white">تسک‌های دوره‌ای (تکرارشونده):</strong> بازه تکرار دارند. با تیک زدن هر دوره، تاریخ امروز در «آخرین اقدام» ثبت شده و تاریخ مهلت بعدی خودکار برای دوره آینده تنظیم می‌شود.</li>
+                <li><strong class="text-white">تسک‌های عقب‌افتاده:</strong> هر تسکی که تاریخ مهلت آن قبل از امروز باشد و تیک نخورده باشد، قرمز و در تب «عقب‌افتاده‌ها» قرار می‌گیرد.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="mt-8 pt-4 border-t border-white/10 flex justify-end">
+            <button @click="showHelpModal = false" class="px-6 py-2.5 bg-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg">متوجه شدم</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 🚀 Teleport برای کارت تمرکز سه‌بعدی -->
+    <Teleport to="body">
+      <div v-if="selectedTask" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300" @click.self="closeTaskFocus">
+        <div class="w-full max-w-3xl rounded-3xl p-8 max-h-[85vh] overflow-y-auto border-2 border-purple-500/50 shadow-[0_0_60px_rgba(168,85,247,0.3)] bg-slate-900 text-white relative animate-in zoom-in-95 duration-300">
+          <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
+            <button @click="closeTaskFocus" class="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-black rounded-2xl shadow-xl transition flex items-center gap-2">
+              <ArrowRight class="w-5 h-5" />
+              <span>بازگشت به لیست تسک‌ها</span>
+            </button>
+            <div class="flex items-center gap-2">
+              <button @click="openEditForm(selectedTask)" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5"><Edit3 class="w-4 h-4 text-purple-400" /> ویرایش</button>
+              <button @click="deleteTask(selectedTask.id)" class="px-4 py-2 bg-red-500/20 text-red-400 font-bold rounded-xl text-xs transition flex items-center gap-1.5"><Trash2 class="w-4 h-4" /> حذف</button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 mb-4 flex-wrap">
+            <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-black text-xs"><Sparkles class="w-4 h-4 text-amber-400 animate-spin" /> شناسنامه کامل تسک</span>
+            <span v-if="isTaskOverdue(selectedTask)" class="px-3.5 py-1.5 rounded-full bg-red-500/30 text-red-300 font-black text-xs border border-red-500/50">🚨 عقب‌افتاده</span>
+            <span v-if="isTaskRecurring(selectedTask)" class="px-3.5 py-1.5 rounded-full bg-amber-500/20 text-amber-300 font-black text-xs border border-amber-500/30">🔄 تکرارشونده</span>
+          </div>
+
+          <div class="flex items-start gap-4 mb-6 pb-6 border-b border-white/10">
+            <button @click="toggleTask(selectedTask)" class="w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all mt-1 flex-shrink-0" :class="(selectedTask.is_completed || selectedTask.status === 'completed') ? 'bg-purple-600 border-purple-600 text-white' : 'border-white/30 text-transparent'"><Check class="w-6 h-6" /></button>
             <div>
-              <h3 class="text-xl md:text-2xl font-black text-white">راهنمای جامع تعریف تسک‌ها و منطق برنامه</h3>
-              <p class="text-xs text-gray-400 mt-1">آموزش گام‌به‌گام تعریف تسک‌های ساده و دوره‌ای با مثال‌های عملی</p>
+              <h2 class="text-2xl md:text-3xl font-black text-white mb-2" :class="(selectedTask.is_completed || selectedTask.status === 'completed') ? 'line-through opacity-40' : ''">{{ selectedTask.title }}</h2>
+              <p v-if="selectedTask.description" class="text-base text-gray-200 leading-relaxed whitespace-pre-line">{{ selectedTask.description }}</p>
             </div>
           </div>
-          <button @click="showHelpModal = false" class="p-2 text-gray-400 hover:text-white"><X class="w-6 h-6" /></button>
-        </div>
 
-        <div class="space-y-8 text-right">
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-base font-black text-amber-400 flex items-center gap-2">
-              <Info class="w-5 h-5" /> منطق محاسباتی تاریخ‌ها و تکرار تسک‌ها
-            </h4>
-            <ul class="text-xs md:text-sm text-gray-300 space-y-2 leading-relaxed list-disc list-inside">
-              <li><strong class="text-white">تسک‌های ساده (یک‌باره):</strong> یک تاریخ ثبت و مدت زمان دارند. پس از تیک خوردن، وضعیت به «تکمیل‌شده» تغییر کرده و تاریخ انجام در «آخرین اقدام» ثبت می‌شود.</li>
-              <li><strong class="text-white">تسک‌های دوره‌ای (تکرارشونده):</strong> بازه تکرار دارند. با تیک زدن هر دوره، تاریخ امروز در «آخرین اقدام» ثبت شده و تاریخ مهلت بعدی خودکار برای دوره آینده تنظیم می‌شود.</li>
-              <li><strong class="text-white">تسک‌های عقب‌افتاده:</strong> هر تسکی که تاریخ مهلت آن قبل از امروز باشد و تیک نخورده باشد، قرمز و در تب «عقب‌افتاده‌ها» قرار می‌گیرد.</li>
-            </ul>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl"><Flag class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">درجه اولویت</p><p class="text-base font-black text-white">{{ priorityLabels[selectedTask.priority] || 'عادی' }}</p></div></div>
+            <div class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-purple-500/20 text-purple-400 rounded-xl"><Tag class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">دسته‌بندی</p><p class="text-base font-black text-white">{{ selectedTask.category || 'عمومی' }}</p></div></div>
+            <div class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl"><Clock class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">تاریخ اقدام / مهلت بعدی</p><p class="text-base font-black text-amber-300">{{ getNextActionDate(selectedTask) }}</p></div></div>
+            <div v-if="selectedTask.last_action_date" class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl"><CheckCircle2 class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">تاریخ آخرین تکمیل / اقدام</p><p class="text-base font-bold text-white">{{ formatDate(selectedTask.last_action_date) }}</p></div></div>
           </div>
-        </div>
 
-        <div class="mt-8 pt-4 border-t border-white/10 flex justify-end">
-          <button @click="showHelpModal = false" class="px-6 py-2.5 bg-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg">متوجه شدم</button>
+          <div class="flex justify-end pt-4 border-t border-white/10">
+            <button @click="closeTaskFocus" class="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs transition">بستن حالت تمرکز</button>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- 🌟 حالت تمرکز هوشمند روی تسک انتخابی -->
-    <div v-if="selectedTask" class="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300" @click.self="closeTaskFocus">
-      <div class="w-full max-w-3xl rounded-3xl p-8 max-h-[90vh] overflow-y-auto border-2 border-purple-500/50 shadow-[0_0_60px_rgba(168,85,247,0.3)] bg-slate-900 text-white relative animate-in zoom-in-95 duration-300">
-        <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
-          <button @click="closeTaskFocus" class="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-black rounded-2xl shadow-xl transition flex items-center gap-2">
-            <ArrowRight class="w-5 h-5" />
-            <span>بازگشت به لیست تسک‌ها</span>
-          </button>
-          <div class="flex items-center gap-2">
-            <button @click="openEditForm(selectedTask)" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5"><Edit3 class="w-4 h-4 text-purple-400" /> ویرایش</button>
-            <button @click="deleteTask(selectedTask.id)" class="px-4 py-2 bg-red-500/20 text-red-400 font-bold rounded-xl text-xs transition flex items-center gap-1.5"><Trash2 class="w-4 h-4" /> حذف</button>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 mb-4 flex-wrap">
-          <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-black text-xs"><Sparkles class="w-4 h-4 text-amber-400 animate-spin" /> شناسنامه کامل تسک</span>
-          <span v-if="isTaskOverdue(selectedTask)" class="px-3.5 py-1.5 rounded-full bg-red-500/30 text-red-300 font-black text-xs border border-red-500/50">🚨 عقب‌افتاده</span>
-          <span v-if="isTaskRecurring(selectedTask)" class="px-3.5 py-1.5 rounded-full bg-amber-500/20 text-amber-300 font-black text-xs border border-amber-500/30">🔄 تکرارشونده</span>
-        </div>
-
-        <div class="flex items-start gap-4 mb-6 pb-6 border-b border-white/10">
-          <button @click="toggleTask(selectedTask)" class="w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all mt-1 flex-shrink-0" :class="(selectedTask.is_completed || selectedTask.status === 'completed') ? 'bg-purple-600 border-purple-600 text-white' : 'border-white/30 text-transparent'"><Check class="w-6 h-6" /></button>
-          <div>
-            <h2 class="text-2xl md:text-3xl font-black text-white mb-2" :class="(selectedTask.is_completed || selectedTask.status === 'completed') ? 'line-through opacity-40' : ''">{{ selectedTask.title }}</h2>
-            <p v-if="selectedTask.description" class="text-base text-gray-200 leading-relaxed whitespace-pre-line">{{ selectedTask.description }}</p>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl"><Flag class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">درجه اولویت</p><p class="text-base font-black text-white">{{ priorityLabels[selectedTask.priority] || 'عادی' }}</p></div></div>
-          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-purple-500/20 text-purple-400 rounded-xl"><Tag class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">دسته‌بندی</p><p class="text-base font-black text-white">{{ selectedTask.category || 'عمومی' }}</p></div></div>
-          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl"><Clock class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">تاریخ اقدام / مهلت بعدی</p><p class="text-base font-black text-amber-300">{{ getNextActionDate(selectedTask) }}</p></div></div>
-          <div v-if="selectedTask.last_action_date" class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl"><CheckCircle2 class="w-5 h-5" /></div><div><p class="text-xs text-gray-400 font-bold">تاریخ آخرین تکمیل / اقدام</p><p class="text-base font-bold text-white">{{ formatDate(selectedTask.last_action_date) }}</p></div></div>
-        </div>
-
-        <div class="flex justify-end pt-4 border-t border-white/10">
-          <button @click="closeTaskFocus" class="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs transition">بستن حالت تمرکز</button>
-        </div>
-      </div>
-    </div>
+    </Teleport>
 
     <TaskFormModal
       v-model="showTaskModal"

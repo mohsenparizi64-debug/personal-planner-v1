@@ -1,12 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ========== فونت‌های فارسی ========== */
-
-/* فونت‌های کلاسیک ایرانی */
 @font-face {
   font-family: 'BNazanin';
   src: url('https://cdn.fontcdn.ir/Font/Persian/BNazanin/BNazanin.woff2') format('woff2');
@@ -16,6 +14,82 @@
   font-family: 'BNazanin';
   src: url('https://cdn.fontcdn.ir/Font/Persian/BNazanin/BNazanin-Bold.woff2') format('woff2');
   font-weight: bold;
+}
+
+/* 🔤 مقیاس جهانی اندازه فونت ریشه کل برنامه */
+html {
+  transition: font-size 0.3s ease !important;
+}
+
+/* ========== ☀️ تم روشن مدرن ۲۰۲۶ (Light Porcelain 2026 Edition) ========== */
+.light-2026 {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-hover: #e2e8f0;
+  --text-primary: #0f172a;       /* مشکی سورمه‌ای عمیق با نهایت کنتراست */
+  --text-secondary: #334155;     /* خاکستری تیره پررنگ */
+  --accent: #4f46e5;             /* بنفش سلطنتی/نیلی */
+  --accent-hover: #4338ca;
+  --border: rgba(15, 23, 42, 0.12);
+  --header-bg: rgba(255, 255, 255, 0.92);
+  --glow: rgba(79, 70, 229, 0.15);
+  --card-shadow: 0 10px 30px -3px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+}
+
+/* ☀️ قوانین معکوس‌سازی خودکار متون و کارت‌ها در تم روشن ۲۰۲۶ */
+.light-2026,
+.light-2026 body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.light-2026 .glass-card,
+.light-2026 .bg-slate-900,
+.light-2026 .bg-surface-card {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 10px 30px -3px rgba(15, 23, 42, 0.08) !important;
+}
+
+.light-2026 header {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12) !important;
+}
+
+.light-2026 aside {
+  background: #ffffff !important;
+  border-left: 1px solid rgba(15, 23, 42, 0.12) !important;
+}
+
+/* معکوس کردن متون سفید به مشکی/سورمه‌ای پررنگ در تم روشن */
+.light-2026 h1, 
+.light-2026 h2, 
+.light-2026 h3, 
+.light-2026 h4, 
+.light-2026 .text-white {
+  color: #0f172a !important;
+}
+
+.light-2026 .text-gray-200,
+.light-2026 .text-gray-300,
+.light-2026 .text-gray-400 {
+  color: #334155 !important;
+}
+
+.light-2026 .text-gray-500 {
+  color: #475569 !important;
+}
+
+/* پس‌زمینه ابریشمی و نرم تم روشن ۲۰۲۶ */
+.flex.h-screen.relative.light-2026 {
+  background-color: #f8fafc !important;
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 90%, rgba(168, 85, 247, 0.06) 0%, transparent 40%),
+    linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+  background-attachment: fixed !important;
 }
 
 /* ========== تم دارک مدرن (AI 2026 Edition) ========== */
@@ -106,6 +180,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-family);
+  line-height: 1.6;
   transition: background-color 0.4s ease, color 0.4s ease;
   overflow-x: hidden;
 }
@@ -131,7 +206,7 @@ body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
-  border-radius: 1.25rem;
+  border-radius: 1.5rem;
   box-shadow: var(--card-shadow);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
@@ -145,13 +220,13 @@ body {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 136, 0.2), transparent);
-  opacity: 0.5;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  opacity: 0.6;
 }
 
 .glass-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 35px var(--glow), var(--card-shadow);
+  box-shadow: 0 0 25px var(--glow), var(--card-shadow);
   transform: translateY(-2px);
 }
 

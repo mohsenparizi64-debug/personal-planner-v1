@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import AnalogClock from '@/components/AnalogClock.vue'
 import { 
   LayoutDashboard, ListTodo, Target, Wallet, Film, MapPin, BookOpen, Download,
-  Menu, X, LogOut, Calendar, Clock, Palette, Lock, KeyRound, Lightbulb 
+  Menu, X, LogOut, Calendar, Clock, Palette, Lock, KeyRound, Lightbulb, Type, Sparkles 
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -15,6 +15,7 @@ const themeStore = useThemeStore()
 const authStore = useAuthStore()
 const sidebarOpen = ref(false)
 const themeMenuOpen = ref(false)
+const fontMenuOpen = ref(false)
 const showLogoutConfirm = ref(false)
 const currentTime = ref('')
 const currentDate = ref('')
@@ -34,6 +35,7 @@ let inactivityTimer = null
 
 const menuItems = [
   { path: '/', label: 'داشبورد', icon: LayoutDashboard },
+  { path: '/mentor', label: 'منتور هوشمند', icon: Sparkles },
   { path: '/ideas', label: 'ایده‌ها', icon: Lightbulb },
   { path: '/tasks', label: 'تسک‌ها', icon: ListTodo },
   { path: '/goals', label: 'اهداف', icon: Target },
@@ -88,7 +90,6 @@ const activityEvents = [
 
 const setupActivityListeners = () => {
   activityEvents.forEach(event => {
-    // استفاده از فاز Capture (اولویت بالا) تا حتی تایپ درون فرم‌های عمیق هم ثبت شود
     window.addEventListener(event, resetInactivityTimer, { capture: true, passive: true })
   })
 }
@@ -100,7 +101,6 @@ const removeActivityListeners = () => {
   if (inactivityTimer) clearTimeout(inactivityTimer)
 }
 
-// پایش تغییر پیام انقضا در استور (اگر از سمت api.js فراخوانی شود)
 watch(() => authStore.sessionExpiredMessage, (newMsg) => {
   if (newMsg) {
     if (authStore.user?.email) {
@@ -218,27 +218,53 @@ const cancelLogout = () => {
         </router-link>
       </nav>
 
-      <!-- Theme Selector -->
-      <div class="p-4 border-t" :style="{ borderColor: 'var(--border)' }">
+      <!-- Theme & Font Size Selector -->
+      <div class="p-4 border-t space-y-2" :style="{ borderColor: 'var(--border)' }">
+        
+        <!-- انتخاب تم -->
         <button 
-          @click="themeMenuOpen = !themeMenuOpen"
-          class="flex items-center gap-2 w-full px-4 py-3 rounded-xl transition"
+          @click="themeMenuOpen = !themeMenuOpen; fontMenuOpen = false"
+          class="flex items-center gap-2 w-full px-4 py-2.5 rounded-xl transition"
           :style="{ color: 'var(--text-secondary)' }"
         >
           <Palette class="w-5 h-5" />
           <span class="font-medium">تغییر تم</span>
         </button>
-        <div v-if="themeMenuOpen" class="mt-2 space-y-1 rounded-xl p-2" :style="{ background: 'var(--bg-hover)' }">
+
+        <div v-if="themeMenuOpen" class="space-y-1 rounded-xl p-2 border" :style="{ background: 'var(--bg-hover)', borderColor: 'var(--border)' }">
           <button 
             v-for="theme in themeStore.themes" 
             :key="theme.id"
             @click="themeStore.setTheme(theme.id); themeMenuOpen = false"
-            class="block w-full text-right px-3 py-2 rounded-lg text-sm transition"
+            class="block w-full text-right px-3 py-2 rounded-lg text-xs font-bold transition"
             :style="themeStore.currentTheme === theme.id ? { background: 'var(--accent)', color: '#fff' } : { color: 'var(--text-primary)' }"
           >
             {{ theme.icon }} {{ theme.label }}
           </button>
         </div>
+
+        <!-- 🔤 انتخاب سایز فونت کل برنامه -->
+        <button 
+          @click="fontMenuOpen = !fontMenuOpen; themeMenuOpen = false"
+          class="flex items-center gap-2 w-full px-4 py-2.5 rounded-xl transition"
+          :style="{ color: 'var(--text-secondary)' }"
+        >
+          <Type class="w-5 h-5" />
+          <span class="font-medium">اندازه فونت برنامه</span>
+        </button>
+
+        <div v-if="fontMenuOpen" class="space-y-1 rounded-xl p-2 border" :style="{ background: 'var(--bg-hover)', borderColor: 'var(--border)' }">
+          <button 
+            v-for="opt in themeStore.fontScaleOptions" 
+            :key="opt.id"
+            @click="themeStore.setFontScale(opt.id); fontMenuOpen = false"
+            class="block w-full text-right px-3 py-2 rounded-lg text-xs font-bold transition"
+            :style="themeStore.fontScale === opt.id ? { background: 'var(--accent)', color: '#fff' } : { color: 'var(--text-primary)' }"
+          >
+            🔤 {{ opt.label }}
+          </button>
+        </div>
+
       </div>
 
       <!-- Footer -->
@@ -255,10 +281,10 @@ const cancelLogout = () => {
       
       <!-- هدر جدید، شکیل و کپسولی -->
        <header class="sticky top-0 z-30 backdrop-blur-xl border-b shadow-lg transition-all" 
-              :style="{ background: 'rgba(15, 23, 42, 0.85)', borderColor: 'var(--border)' }">
+              :style="{ background: 'var(--header-bg)', borderColor: 'var(--border)' }">
         <div class="flex items-center justify-between px-6 py-3.5">
           
-          <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 hover:bg-white/5 rounded-xl transition text-white">
+          <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 hover:bg-white/5 rounded-xl transition" :style="{ color: 'var(--text-primary)' }">
             <Menu v-if="!sidebarOpen" class="w-7 h-7" /><X v-else class="w-7 h-7" />
           </button>
 
@@ -326,7 +352,6 @@ const cancelLogout = () => {
         
         <h3 class="text-2xl font-black text-white mb-2">انقضای کلمه عبور</h3>
         
-        <!-- پیام اختصاصی مدنظر شما -->
         <div class="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-2xl text-yellow-300 text-sm font-bold mb-6">
           ⚠️ با توجه به منقضی شدن کلمه عبور مجددا وارد شوید.
         </div>

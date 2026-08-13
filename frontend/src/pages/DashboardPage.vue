@@ -93,7 +93,6 @@ const addQuickTask = async () => {
   }
 }
 
-// محاسبه حداکثر مقدار برای نرمال‌سازی نمودار میله‌ای
 const maxWeeklyValue = computed(() => {
   if (!dashboardData.value?.weekly_activity) return 10
   const maxComp = Math.max(...dashboardData.value.weekly_activity.map(d => d.completed), 1)
@@ -116,8 +115,8 @@ onMounted(() => {
             <Zap class="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 class="text-2xl md:text-3xl font-black text-white">{{ greetingMessage }}</h1>
-            <p class="text-xs md:text-sm text-gray-400 mt-1">برج دیده‌بانی و اتاق فرمان برنامه‌ریزی شخصی شما</p>
+            <h1 class="text-2xl md:text-3xl font-black" :style="{ color: 'var(--text-primary)' }">{{ greetingMessage }}</h1>
+            <p class="text-xs md:text-sm mt-1" :style="{ color: 'var(--text-secondary)' }">برج دیده‌بانی و اتاق فرمان برنامه‌ریزی شخصی شما</p>
           </div>
         </div>
       </div>
@@ -127,11 +126,11 @@ onMounted(() => {
         <p class="text-xs text-amber-400 font-bold mb-1 flex items-center gap-1">
           <Star class="w-3.5 h-3.5 fill-amber-400" /> الهام‌بخش روز:
         </p>
-        <p class="text-xs text-gray-200 leading-relaxed italic">« {{ todayQuote }} »</p>
+        <p class="text-xs leading-relaxed italic" :style="{ color: 'var(--text-primary)' }">« {{ todayQuote }} »</p>
       </div>
     </div>
 
-    <div v-if="isLoading" class="text-center py-20 text-gray-400">
+    <div v-if="isLoading" class="text-center py-20" :style="{ color: 'var(--text-secondary)' }">
       <RefreshCw class="w-10 h-10 animate-spin mx-auto mb-3 text-purple-400" />
       <p class="font-bold text-sm">در حال دریافت و تحلیل داده‌های برج دیده‌بانی...</p>
     </div>
@@ -143,8 +142,8 @@ onMounted(() => {
         
         <div class="glass-card p-5 rounded-3xl border border-white/10 flex items-center justify-between">
           <div>
-            <p class="text-xs text-gray-400 font-bold mb-1">کارهای امروز</p>
-            <p class="text-2xl md:text-3xl font-black text-white">
+            <p class="text-xs font-bold mb-1" :style="{ color: 'var(--text-secondary)' }">کارهای امروز</p>
+            <p class="text-2xl md:text-3xl font-black" :style="{ color: 'var(--text-primary)' }">
               {{ dashboardData.summary.today_completed }} / {{ dashboardData.summary.today_total }}
             </p>
           </div>
@@ -167,7 +166,7 @@ onMounted(() => {
 
         <div class="glass-card p-5 rounded-3xl border border-white/10 flex items-center justify-between">
           <div>
-            <p class="text-xs text-gray-400 font-bold mb-1">تحقق کارهای دوره‌ای</p>
+            <p class="text-xs font-bold mb-1" :style="{ color: 'var(--text-secondary)' }">تحقق کارهای دوره‌ای</p>
             <p class="text-2xl md:text-3xl font-black text-emerald-400">
               {{ dashboardData.summary.recurring_completion_rate }}%
             </p>
@@ -179,8 +178,8 @@ onMounted(() => {
 
         <div class="glass-card p-5 rounded-3xl border border-white/10 flex items-center justify-between">
           <div>
-            <p class="text-xs text-gray-400 font-bold mb-1">کل دارایی مالی</p>
-            <p class="text-lg md:text-xl font-black text-purple-300">
+            <p class="text-xs font-bold mb-1" :style="{ color: 'var(--text-secondary)' }">کل دارایی مالی</p>
+            <p class="text-lg md:text-xl font-black text-purple-400">
               {{ dashboardData.summary.total_balance.toLocaleString('fa-IR') }}
             </p>
           </div>
@@ -197,10 +196,10 @@ onMounted(() => {
         <!-- نمودار ۱: روند فعالیت ۷ روز گذشته (Bar Chart) -->
         <div class="lg:col-span-2 glass-card p-6 rounded-3xl border border-white/10 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-6">
-            <h3 class="text-lg font-black text-white flex items-center gap-2">
+            <h3 class="text-lg font-black flex items-center gap-2" :style="{ color: 'var(--text-primary)' }">
               <TrendingUp class="w-5 h-5 text-blue-400" /> نمودار فعالیت ۷ روز گذشته
             </h3>
-            <span class="text-xs text-gray-400">تسک‌های تکمیل‌شده در هفته</span>
+            <span class="text-xs" :style="{ color: 'var(--text-secondary)' }">تسک‌های تکمیل‌شده در هفته</span>
           </div>
 
           <!-- رسم چارت میله‌ای با SVG -->
@@ -210,50 +209,46 @@ onMounted(() => {
               :key="day.date" 
               class="flex-1 flex flex-col items-center h-full justify-end group relative"
             >
-              <!-- Tooltip -->
               <div class="absolute -top-8 opacity-0 group-hover:opacity-100 transition bg-slate-900 border border-white/20 px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-20">
                 {{ day.completed }} تسک تکمیل‌شده
               </div>
 
-              <!-- Bar -->
               <div 
                 class="w-full max-w-[32px] bg-gradient-to-t from-blue-600 to-purple-500 rounded-t-xl transition-all duration-500 group-hover:brightness-125 shadow-lg shadow-blue-500/20"
                 :style="{ height: Math.max((day.completed / maxWeeklyValue * 100), 8) + '%' }"
               ></div>
 
-              <span class="text-[10px] font-bold text-gray-400 mt-2">{{ day.day_name }}</span>
+              <span class="text-[10px] font-bold mt-2" :style="{ color: 'var(--text-secondary)' }">{{ day.day_name }}</span>
             </div>
           </div>
         </div>
 
         <!-- نمودار ۲: دونات تفکیک تسک‌ها (Donut Chart) -->
         <div class="glass-card p-6 rounded-3xl border border-white/10 flex flex-col justify-between">
-          <h3 class="text-lg font-black text-white flex items-center gap-2 mb-4">
+          <h3 class="text-lg font-black flex items-center gap-2 mb-4" :style="{ color: 'var(--text-primary)' }">
             <Flame class="w-5 h-5 text-amber-400" /> تفکیک انواع تسک‌ها
           </h3>
 
-          <!-- رسم چارت دونات بصری با SVG -->
           <div class="relative flex items-center justify-center my-2">
             <svg class="w-36 h-36 transform -rotate-90" viewBox="0 0 36 36">
-              <path class="text-gray-800" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="text-gray-300 dark:text-gray-800" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
               <path class="text-purple-500" stroke-dasharray="60, 100" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
               <path class="text-amber-400" stroke-dasharray="25, 100" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
             </svg>
             <div class="absolute text-center">
-              <span class="text-xl font-black text-white">{{ dashboardData.summary.total_tasks_count }}</span>
-              <p class="text-[10px] text-gray-400">کل تسک‌ها</p>
+              <span class="text-xl font-black" :style="{ color: 'var(--text-primary)' }">{{ dashboardData.summary.total_tasks_count }}</span>
+              <p class="text-[10px]" :style="{ color: 'var(--text-secondary)' }">کل تسک‌ها</p>
             </div>
           </div>
 
-          <!-- راهنمای نمودار -->
           <div class="space-y-2 text-xs pt-2 border-t border-white/5">
-            <div class="flex items-center justify-between text-gray-300">
-              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> تسک‌های یک‌باره:</span>
-              <span class="font-bold text-white">{{ dashboardData.summary.fixed_tasks_count }}</span>
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> تسک‌های یک‌باره:</span>
+              <span class="font-bold" :style="{ color: 'var(--text-primary)' }">{{ dashboardData.summary.fixed_tasks_count }}</span>
             </div>
-            <div class="flex items-center justify-between text-gray-300">
-              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> تسک‌های دوره‌ای:</span>
-              <span class="font-bold text-white">{{ dashboardData.summary.recurring_tasks_count }}</span>
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> تسک‌های دوره‌ای:</span>
+              <span class="font-bold" :style="{ color: 'var(--text-primary)' }">{{ dashboardData.summary.recurring_tasks_count }}</span>
             </div>
           </div>
         </div>
@@ -274,7 +269,7 @@ onMounted(() => {
             </span>
           </div>
 
-          <div v-if="dashboardData.overdue_tasks.length === 0" class="text-center py-8 text-gray-400 text-xs">
+          <div v-if="dashboardData.overdue_tasks.length === 0" class="text-center py-8 text-xs" :style="{ color: 'var(--text-secondary)' }">
             🎉 عالیه! هیچ کار عقب‌افتاده‌ای نداری.
           </div>
 
@@ -285,15 +280,15 @@ onMounted(() => {
               class="p-3.5 rounded-2xl bg-white/5 border border-red-500/20 flex items-center justify-between gap-3 hover:bg-white/10 transition"
             >
               <div>
-                <p class="text-xs font-bold text-white mb-1">{{ task.title }}</p>
-                <p class="text-[10px] text-red-300">مهلت: {{ formatDate(task.due_date) }}</p>
+                <p class="text-xs font-bold mb-1" :style="{ color: 'var(--text-primary)' }">{{ task.title }}</p>
+                <p class="text-[10px] text-red-400 font-bold">مهلت: {{ formatDate(task.due_date) }}</p>
               </div>
 
               <div class="flex items-center gap-1.5">
-                <button @click="extendToToday(task)" class="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[10px] font-bold hover:bg-amber-500/30 transition">
+                <button @click="extendToToday(task)" class="px-2.5 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-[10px] font-bold hover:bg-amber-500/30 transition">
                   تمدید به امروز
                 </button>
-                <button @click="toggleTask(task)" class="px-2.5 py-1 bg-green-500/20 text-green-300 border border-green-500/30 rounded-lg text-[10px] font-bold hover:bg-green-500/30 transition">
+                <button @click="toggleTask(task)" class="px-2.5 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-bold hover:bg-green-500/30 transition">
                   تکمیل
                 </button>
               </div>
@@ -305,7 +300,7 @@ onMounted(() => {
         <div class="glass-card p-6 rounded-3xl border border-white/10 flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-black text-white flex items-center gap-2">
+              <h3 class="text-lg font-black flex items-center gap-2" :style="{ color: 'var(--text-primary)' }">
                 <ListTodo class="w-5 h-5 text-blue-400" /> کارهای امروز
               </h3>
               <router-link to="/tasks" class="text-xs text-blue-400 hover:underline flex items-center gap-1">
@@ -313,7 +308,7 @@ onMounted(() => {
               </router-link>
             </div>
 
-            <div v-if="dashboardData.today_tasks.length === 0" class="text-center py-6 text-gray-400 text-xs">
+            <div v-if="dashboardData.today_tasks.length === 0" class="text-center py-6 text-xs" :style="{ color: 'var(--text-secondary)' }">
               هیچ تسکی برای امروز ثبت نشده است.
             </div>
 
@@ -328,7 +323,7 @@ onMounted(() => {
                   <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition" :class="task.is_completed ? 'bg-purple-600 border-purple-600 text-white' : 'border-white/30'">
                     <CheckCircle v-if="task.is_completed" class="w-3.5 h-3.5" />
                   </div>
-                  <span class="text-xs font-bold text-white" :class="task.is_completed ? 'line-through opacity-40' : ''">{{ task.title }}</span>
+                  <span class="text-xs font-bold" :class="task.is_completed ? 'line-through opacity-40' : ''" :style="{ color: 'var(--text-primary)' }">{{ task.title }}</span>
                 </div>
               </div>
             </div>
@@ -340,7 +335,8 @@ onMounted(() => {
               v-model="quickTaskTitle" 
               type="text" 
               placeholder="ثبت سریع تسک جدید برای امروز..." 
-              class="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              class="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-purple-500"
+              :style="{ color: 'var(--text-primary)' }"
             />
             <button type="submit" class="p-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition">
               <Plus class="w-4 h-4" />
@@ -353,30 +349,29 @@ onMounted(() => {
       <!-- 🎯 پیشرفت واقعی اهداف + ایده پیشنهادی روز -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- پیشرفت واقعی اهداف کلان -->
         <div class="lg:col-span-2 glass-card p-6 rounded-3xl border border-white/10">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-black text-white flex items-center gap-2">
+            <h3 class="text-lg font-black flex items-center gap-2" :style="{ color: 'var(--text-primary)' }">
               <Target class="w-5 h-5 text-purple-400" /> پیشرفت واقعی اهداف کلان
             </h3>
             <router-link to="/goals" class="text-xs text-purple-400 hover:underline">مشاهده همه اهداف</router-link>
           </div>
 
-          <div v-if="dashboardData.goals.length === 0" class="text-center py-6 text-gray-400 text-xs">
+          <div v-if="dashboardData.goals.length === 0" class="text-center py-6 text-xs" :style="{ color: 'var(--text-secondary)' }">
             هیچ هدفی تعریف نشده است.
           </div>
 
           <div v-else class="space-y-4">
             <div v-for="goal in dashboardData.goals" :key="goal.id" class="p-4 rounded-2xl bg-white/5 border border-white/10">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-sm font-bold text-white">{{ goal.title }}</span>
+                <span class="text-sm font-bold" :style="{ color: 'var(--text-primary)' }">{{ goal.title }}</span>
                 <span class="text-xs font-black text-purple-400">{{ goal.calculated_progress }}%</span>
               </div>
               <div class="w-full h-2 rounded-full bg-black/20 overflow-hidden mb-2">
                 <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-700" :style="{ width: goal.calculated_progress + '%' }"></div>
               </div>
-              <div v-if="goal.next_step" class="text-[10px] text-gray-400">
-                📌 گام بعدی: <span class="text-gray-200 font-bold">{{ goal.next_step }}</span>
+              <div v-if="goal.next_step" class="text-[10px]" :style="{ color: 'var(--text-secondary)' }">
+                📌 گام بعدی: <span class="font-bold" :style="{ color: 'var(--text-primary)' }">{{ goal.next_step }}</span>
               </div>
             </div>
           </div>
@@ -393,15 +388,15 @@ onMounted(() => {
             </div>
 
             <div v-if="dashboardData.idea_of_the_day">
-              <h4 class="text-base font-bold text-white mb-2">{{ dashboardData.idea_of_the_day.title }}</h4>
-              <p class="text-xs text-gray-300 leading-relaxed line-clamp-4">{{ dashboardData.idea_of_the_day.description || 'بدون توضیحات' }}</p>
+              <h4 class="text-base font-bold mb-2" :style="{ color: 'var(--text-primary)' }">{{ dashboardData.idea_of_the_day.title }}</h4>
+              <p class="text-xs leading-relaxed line-clamp-4" :style="{ color: 'var(--text-secondary)' }">{{ dashboardData.idea_of_the_day.description || 'بدون توضیحات' }}</p>
             </div>
-            <div v-else class="text-center py-8 text-gray-400 text-xs">
+            <div v-else class="text-center py-8 text-xs" :style="{ color: 'var(--text-secondary)' }">
               هیچ ایده‌ای ثبت نشده است.
             </div>
           </div>
 
-          <router-link to="/ideas" class="mt-4 w-full py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition text-center block">
+          <router-link to="/ideas" class="mt-4 w-full py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition text-center block">
             ورود به بانک ایده‌ها و پرورش ایده
           </router-link>
         </div>

@@ -17,7 +17,8 @@ def add_computed_fields(task):
 
 @router.get("/", response_model=List[TaskRead])
 async def get_tasks(
-    skip: int = 0, limit: int = 100,
+    skip: int = 0, 
+    limit: int = 5000, # 🚀 افزایش سقف به ۵,۰۰۰ تسک جهت نمایش تمام ۱۳۶+ تسک
     category: Optional[str] = Query(None), status: Optional[str] = Query(None),
     priority: Optional[int] = Query(None), goal_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),

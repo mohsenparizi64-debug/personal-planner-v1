@@ -63,7 +63,8 @@ def calculate_days_until_recurrence(task) -> Optional[int]:
     return calculate_days_until(rec)
 
 
-async def get_tasks(db: AsyncSession, owner_id: int, skip: int = 0, limit: int = 50):
+# 🚀 افزایش سقف پیش‌فرض دریافت تسک‌ها به ۵,۰۰۰ عدد (جهت نمایش تمام ۱۳۶+ تسک)
+async def get_tasks(db: AsyncSession, owner_id: int, skip: int = 0, limit: int = 5000):
     result = await db.execute(
         select(Task)
         .where(Task.owner_id == owner_id)
@@ -113,22 +114,22 @@ async def update_task(db: AsyncSession, task_id: int, owner_id: int, task_update
 
     update_data = task_update.model_dump(exclude_unset=True)
 
-    # تشخیص صریح اینکه آیا تسک در حال تکمیل شدن است
     is_marking_completed = update_data.get("is_completed") is True or update_data.get("status") == "completed"
 
-    # 📅 درج اتوماتیک تاریخ آخرین اقدام در صورت تکمیل یا خالی بودن
     if update_data.get("status") is not None or is_marking_completed or not db_task.last_action_date:
         db_task.last_action_date = date.today()
 
     for key, value in update_data.items():
         setattr(db_task, key, value)
 
-    # همگام‌سازی وضعیت تکمیل
+    # 📌 اطمینان از اینکه due_date حتماً مقدار دارد
+    if not db_task.due_date:
+        db_task.due_date = calculate_suggested_due_date(db_task)
+
     if is_marking_completed:
         db_task.is_completed = True
         db_task.status = "completed"
 
-        # 🔄 پایش هوشمند کارهای دوره‌ای و زمان‌بندی خودکار برای فردا/دوره بعدی
         has_recurrence = db_task.recurrence_type and db_task.recurrence_type != "none"
         is_auto_reschedule_enabled = getattr(db_task, "auto_reschedule", True)
 
@@ -138,10 +139,6 @@ async def update_task(db: AsyncSession, task_id: int, owner_id: int, task_update
                 db_task.due_date = next_due
                 db_task.is_completed = False
                 db_task.status = "not_started"
-
-    # 📌 محاسبه و تضمین مقدار due_date در صورت خالی بودن
-    if not db_task.due_date:
-        db_task.due_date = calculate_suggested_due_date(db_task)
 
     await db.commit()
     await db.refresh(db_task)
