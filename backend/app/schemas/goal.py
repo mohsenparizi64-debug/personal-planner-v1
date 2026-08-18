@@ -40,3 +40,18 @@ class GoalRead(GoalBase):
 
     class Config:
         from_attributes = True
+
+# اسکیما جهت رفع خطای ResponseValidationError در لاگ‌های تغییرات اهداف
+class GoalLogRead(BaseModel):
+    id: int
+    goal_id: Optional[int] = None  # اختیاری بودن فیلد جهت جلوگیری از کرش هنگام NULL بودن
+    action: str
+    field_name: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    description: Optional[str] = None
+    owner_id: int
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

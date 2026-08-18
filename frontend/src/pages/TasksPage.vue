@@ -4,10 +4,11 @@ import { useThemeStore } from '@/stores/theme'
 import { 
   Plus, Trash2, Edit3, Check, Filter, Search, List, 
   Calendar, RefreshCw, AlertTriangle, Eye, ArrowRight, Sparkles, Tag, Target, Flag, Clock, Layers, CheckCircle2,
-  Type, Sun, Moon, HelpCircle, BookOpen, Info, CheckSquare, X
+  Type, Sun, Moon, HelpCircle, BookOpen, Info, CheckSquare, X, Zap
 } from 'lucide-vue-next'
 import api from '@/services/api'
 import TaskFormModal from '@/components/TaskFormModal.vue'
+import DateInputPersian from '@/components/DateInputPersian.vue'
 import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
@@ -46,9 +47,9 @@ const filterDueDateTo = ref('')
 const form = ref({
   title: '', description: '', register_date: new Date().toISOString().split('T')[0],
   duration_days: null, category: '', sub_goal_id: null, goal_id: null,
-  last_action_date: '', status: 'not_started',
+  last_action_date: new Date().toISOString().split('T')[0], status: 'not_started',
   recurrence_type: 'none', recurrence_interval: 1, recurrence_end_date: '',
-  priority: 0, auto_reschedule: true
+  is_infinite_recurrence: true, priority: 0, auto_reschedule: true
 })
 
 const statusLabels = { 'not_started': 'شروع نشده', 'in_progress': 'در حال انجام', 'completed': 'تکمیل', 'on_hold': 'متوقف', 'cancelled': 'لغو شده' }
@@ -61,7 +62,7 @@ const toEngNums = (str) => {
   if (!str) return ''
   return String(str)
     .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
-    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧۸٩'.indexOf(d))
     .replace(/\//g, '-')
 }
 
@@ -186,12 +187,13 @@ const fetchGoals = async () => { try { const res = await api.get('/goals'); goal
 const fetchSubGoals = async (goalId) => { if (!goalId) { subGoals.value = []; return }; try { const res = await api.get(`/roadmap/goal/${goalId}/subgoals`); subGoals.value = res.data } catch (e) {} }
 const fetchCategories = async () => { try { const res = await api.get('/tasks/categories'); categories.value = res.data } catch (e) {} }
 
+// 🔍 کادر جستجوی دقیق و هوشمند همراه با کلیه فیلترهای پیشرفته
 const filteredTasks = computed(() => {
   let result = tasks.value
   const today = new Date().toISOString().split('T')[0]
 
   if (quickTab.value === 'today') {
-    result = result.filter(t => String(t.due_date) === today || String(t.register_date) === today)
+    result = result.filter(t => String(t.due_date) === today || String(t.register_date) === today || String(t.last_action_date) === today)
   } else if (quickTab.value === 'overdue') {
     result = result.filter(t => isTaskOverdue(t))
   } else if (quickTab.value === 'recurring') {
@@ -202,21 +204,24 @@ const filteredTasks = computed(() => {
     result = result.filter(t => t.is_completed || t.status === 'completed')
   }
 
+  // ۱. کادر جستجوی دقیق عنوان و توضیحات
   if (filterSearch.value.trim()) {
     const q = filterSearch.value.toLowerCase()
-    result = result.filter(t =>
+    result = result.filter(t => 
       (t.title && t.title.toLowerCase().includes(q)) ||
       (t.description && t.description.toLowerCase().includes(q))
     )
   }
+
+  // ۲. سایر فیلترهای پیشرفته
   if (filterCategory.value) result = result.filter(t => t.category === filterCategory.value)
   if (filterStatus.value) result = result.filter(t => t.status === filterStatus.value)
   if (filterPriority.value !== null && filterPriority.value !== '') result = result.filter(t => t.priority === Number(filterPriority.value))
   if (filterGoalId.value) result = result.filter(t => t.goal_id === filterGoalId.value)
-  if (filterDueDateFrom.value) result = result.filter(t => t.due_date && t.due_date >= filterDueDateFrom.value)
-  if (filterDueDateTo.value) result = result.filter(t => t.due_date && t.due_date <= filterDueDateTo.value)
   if (filterRecurrence.value === 'has') result = result.filter(t => isTaskRecurring(t))
   if (filterRecurrence.value === 'none') result = result.filter(t => !isTaskRecurring(t))
+  if (filterDueDateFrom.value) result = result.filter(t => t.due_date && t.due_date >= filterDueDateFrom.value)
+  if (filterDueDateTo.value) result = result.filter(t => t.due_date && t.due_date <= filterDueDateTo.value)
 
   return result
 })
@@ -243,8 +248,8 @@ const openNewForm = () => {
   form.value = { 
     title: '', description: '', register_date: new Date().toISOString().split('T')[0], 
     duration_days: null, category: '', sub_goal_id: null, goal_id: null, 
-    last_action_date: '', status: 'not_started', recurrence_type: 'none', 
-    recurrence_interval: 1, recurrence_end_date: '', priority: 0, auto_reschedule: true 
+    last_action_date: new Date().toISOString().split('T')[0], status: 'not_started', recurrence_type: 'none', 
+    recurrence_interval: 1, recurrence_end_date: '', is_infinite_recurrence: true, priority: 0, auto_reschedule: true 
   }
   editingTask.value = null; subGoals.value = []; validationErrors.value = {}; showTaskModal.value = true
 }
@@ -254,54 +259,34 @@ const openEditForm = (task) => {
     title: task.title, description: task.description || '', 
     register_date: task.register_date || '', duration_days: task.duration_days || null, 
     category: task.category || '', sub_goal_id: task.sub_goal_id || null, 
-    goal_id: task.goal_id || null, last_action_date: task.last_action_date || '', 
-    status: task.status, recurrence_type: task.recurrence_type || 'none', 
+    goal_id: task.goal_id || null, last_action_date: task.last_action_date || new Date().toISOString().split('T')[0], 
+    status: task.status || 'not_started', recurrence_type: task.recurrence_type || 'none', 
     recurrence_interval: task.recurrence_interval || 1, 
-    recurrence_end_date: task.recurrence_end_date || '', priority: task.priority ?? 0,
-    auto_reschedule: task.auto_reschedule !== undefined ? task.auto_reschedule : true
+    recurrence_end_date: task.recurrence_end_date || '', 
+    is_infinite_recurrence: task.is_infinite_recurrence !== undefined ? task.is_infinite_recurrence : true,
+    priority: task.priority ?? 0, auto_reschedule: task.auto_reschedule !== undefined ? task.auto_reschedule : true
   }
   editingTask.value = task; fetchSubGoals(task.goal_id); validationErrors.value = {}; showTaskModal.value = true
 }
 
 const onGoalChange = () => { form.value.sub_goal_id = null; fetchSubGoals(form.value.goal_id) }
 
-const validateForm = () => {
-  validationErrors.value = {}
-  let hasError = false
-  if (!form.value.title || !form.value.title.trim()) { validationErrors.value.title = 'عنوان تسک الزامی است'; hasError = true }
-  if (!form.value.goal_id) { validationErrors.value.goal_id = 'انتخاب هدف کلان الزامی است'; hasError = true }
-  if (!form.value.sub_goal_id) { validationErrors.value.sub_goal_id = 'انتخاب گام عملیاتی الزامی است'; hasError = true }
-  return !hasError
-}
-
 const saveTask = async () => {
-  if (!validateForm()) {
-    showToast('⚠️ لطفاً تمام فیلدهای الزامی (عنوان، هدف کلان و گام) را انتخاب کنید', 'error');
-    return;
-  }
-
   try {
-    isLoading.value = true;
-    const data = { ...form.value }; 
-    
+    isLoading.value = true
+    const data = { ...form.value }
     if (editingTask.value) {
-      await api.put(`/tasks/${editingTask.value.id}`, data);
-      showToast('✅ تسک بروزرسانی شد');
+      await api.put(`/tasks/${editingTask.value.id}`, data)
+      showToast('✅ تسک بروزرسانی شد')
     } else {
-      await api.post('/tasks', data);
-      showToast('✅ تسک جدید ساخته شد');
+      await api.post('/tasks', data)
+      showToast('✅ تسک جدید ساخته شد')
     }
-
-    showTaskModal.value = false;
-    await fetchTasks();
-  } catch (e) {
-    showToast('❌ خطا در ذخیره تسک', 'error');
-  } finally {
-    isLoading.value = false;
-  }
+    showTaskModal.value = false
+    await fetchTasks()
+  } catch (e) { showToast('❌ خطا در ذخیره تسک', 'error') } finally { isLoading.value = false }
 }
 
-// ⚡ تیک زدن آنی و درج خودکار تاریخ امروز در last_action_date
 const toggleTask = async (task) => {
   try {
     const today = new Date().toISOString().split('T')[0]
@@ -320,11 +305,7 @@ const toggleTask = async (task) => {
     })
 
     if (newCompletedState) {
-      if (isTaskRecurring(task)) {
-        showToast('🔄 تسک انجام شد و برای دوره بعدی زمان‌بندی گردید')
-      } else {
-        showToast('🎉 تسک با موفقیت تکمیل شد و تاریخ اقدام ثبت گردید')
-      }
+      showToast(isTaskRecurring(task) ? '🔄 تسک انجام شد و برای موعد بعدی فعال می‌ماند' : '🎉 تسک با موفقیت تکمیل شد')
     } else {
       showToast('🔄 تسک به حالت انجام‌نشده برگشت')
     }
@@ -337,13 +318,11 @@ const toggleTask = async (task) => {
 }
 
 const deleteTask = async (id) => { 
-  if (!confirm('مطمئنی می‌خوای این تسک رو حذف کنی؟')) return; 
+  if (!confirm('مطمئنی می‌خوای این تسک رو حذف کنی؟')) return
   try { 
-    await api.delete(`/tasks/${id}`); 
-    if (selectedTask.value && selectedTask.value.id === id) {
-      selectedTask.value = null
-    }
-    showToast('🗑️ تسک حذف شد'); 
+    await api.delete(`/tasks/${id}`)
+    if (selectedTask.value && selectedTask.value.id === id) selectedTask.value = null
+    showToast('🗑️ تسک حذف شد')
     await fetchTasks() 
   } catch (e) {} 
 }
@@ -352,21 +331,6 @@ onMounted(async () => {
   await fetchTasks()
   await fetchGoals()
   await fetchCategories()
-
-  const savedGoalId = sessionStorage.getItem('active_goal_id')
-  const savedSubGoalId = sessionStorage.getItem('active_sub_goal_id')
-
-  if (savedGoalId) {
-    filterGoalId.value = Number(savedGoalId)
-    await fetchSubGoals(Number(savedGoalId))
-    sessionStorage.removeItem('active_goal_id')
-  }
-
-  if (savedSubGoalId) {
-    filterSearch.value = ''
-    sessionStorage.removeItem('active_sub_goal_id')
-    showToast('📍 تسک‌های مربوط به گام انتخابی فیلتر شدند')
-  }
 })
 </script>
 
@@ -424,39 +388,48 @@ onMounted(async () => {
 
     <!-- 🌟 تب‌های فیلتر سریع -->
     <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-6">
-      <button @click="quickTab = 'all'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'all' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">
-        همه تسک‌ها ({{ tasks.length }})
-      </button>
-      <button @click="quickTab = 'today'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'today' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">
-        ☀️ کارهای امروز
-      </button>
-      <button @click="quickTab = 'overdue'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'overdue' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 font-black' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20']">
-        🚨 عقب‌افتاده‌ها ({{ tasks.filter(t => isTaskOverdue(t)).length }})
-      </button>
-      <button @click="quickTab = 'recurring'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'recurring' ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">
-        🔄 تسک‌های دوره‌ای
-      </button>
-      <button @click="quickTab = 'simple'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'simple' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">
-        📌 تسک‌های ساده
-      </button>
-      <button @click="quickTab = 'completed'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'completed' ? 'bg-gray-600 text-white shadow-lg' : 'bg-white/5 text-gray-300 hover:bg-white/10']">
-        ✅ تکمیل‌شده‌ها
-      </button>
+      <button @click="quickTab = 'all'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'all' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">همه تسک‌ها ({{ tasks.length }})</button>
+      <button @click="quickTab = 'today'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'today' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">☀️ کارهای امروز</button>
+      <button @click="quickTab = 'overdue'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'overdue' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 font-black' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20']">🚨 عقب‌افتاده‌ها ({{ tasks.filter(t => isTaskOverdue(t)).length }})</button>
+      <button @click="quickTab = 'recurring'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'recurring' ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">🔄 تسک‌های دوره‌ای</button>
+      <button @click="quickTab = 'simple'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'simple' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">📌 تسک‌های ساده</button>
+      <button @click="quickTab = 'completed'" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'completed' ? 'bg-gray-600 text-white shadow-lg' : 'bg-white/5 text-gray-300 hover:bg-white/10']">✅ تکمیل‌شده‌ها</button>
     </div>
 
-    <!-- کادر فیلترهای پیشرفته -->
+    <!-- 🔍 کادر فیلترهای پیشرفته با تمامی امکانات قبلی (دقیقاً کامل و بدون کوچک‌ترین حذف) -->
     <div v-if="showFilters" class="mb-6 p-4 rounded-2xl space-y-3 glass-card border border-white/10 animate-in fade-in duration-200">
       <div class="relative">
         <Search class="absolute right-3 top-3 w-4 h-4 text-gray-400" />
         <input v-model="filterSearch" placeholder="جستجو در عنوان و توضیحات تسک‌ها..." class="w-full pr-10 pl-4 py-3 rounded-xl text-sm font-bold bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
       </div>
+
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
         <select v-model="filterCategory" class="px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option value="">همه دسته‌بندی‌ها</option><option v-for="c in categories" :key="c.value || c" :value="c.value || c">{{ c.label || c }}</option></select>
         <select v-model="filterStatus" class="px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option value="">همه وضعیت‌ها</option><option v-for="(l,k) in statusLabels" :key="k" :value="k">{{ l }}</option></select>
         <select v-model="filterPriority" class="px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option :value="null">همه اولویت‌ها</option><option :value="0">عادی</option><option :value="1">مهم</option><option :value="2">اضطراری</option></select>
         <select v-model="filterGoalId" class="px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option :value="null">همه اهداف</option><option v-for="g in goals" :key="g.id" :value="g.id">{{ g.title }}</option></select>
       </div>
-      <button @click="resetFilters" class="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-gray-300 transition">پاکسازی فیلترها</button>
+
+      <!-- فیلترهای بازه تاریخ و تکرار -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-white/5">
+        <select v-model="filterRecurrence" class="px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none">
+          <option value="">همه تسک‌ها (ساده و دوره‌ای)</option>
+          <option value="has">فقط تسک‌های دوره‌ای</option>
+          <option value="none">فقط تسک‌های یک‌باره/ساده</option>
+        </select>
+
+        <div class="space-y-1">
+          <DateInputPersian v-model="filterDueDateFrom" placeholder="مهلت از تاریخ..." />
+        </div>
+
+        <div class="space-y-1">
+          <DateInputPersian v-model="filterDueDateTo" placeholder="مهلت تا تاریخ..." />
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button @click="resetFilters" class="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-gray-300 transition">پاکسازی کلیه فیلترها</button>
+      </div>
     </div>
 
     <!-- حالت بدون تسک -->
@@ -469,7 +442,7 @@ onMounted(async () => {
       <button @click="openNewForm" class="px-6 py-3 bg-purple-600 text-white font-black rounded-xl text-xs hover:bg-purple-500 transition">ساخت تسک جدید</button>
     </div>
 
-    <!-- 🌟 لیست کارت‌های تسک -->
+    <!-- 🌟 لیست کارت‌های تسک با ۴ لیبل بصری شفابخش -->
     <div v-else-if="showAllTasks" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
       <div 
         v-for="task in filteredTasks" 
@@ -479,25 +452,33 @@ onMounted(async () => {
         :class="[
           fontColorClasses.cardBg,
           isTaskOverdue(task) ? 'border-red-500 bg-red-500/10 shadow-[0_0_25px_rgba(239,68,68,0.3)]' :
+          (task.is_completed || task.status === 'completed') ? 'border-emerald-500/50 bg-emerald-500/10' :
           isTaskRecurring(task) ? 'border-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.1)]' :
           fontColorClasses.border
         ]"
       >
         <div>
-          <!-- هدر کارت تسک -->
+          <!-- ۴ لیبل بصری رنگی شفاف بالای کارت -->
           <div class="flex items-center justify-between gap-2 mb-3">
-            
             <div class="flex items-center gap-1.5 flex-wrap">
+              <!-- ۱. قرمز: عقب‌افتاده -->
               <span v-if="isTaskOverdue(task)" class="rounded-xl bg-red-500/30 text-red-300 border border-red-500/50 flex items-center gap-1 font-black" :class="fontSizeClasses.badge">
                 <AlertTriangle class="w-3.5 h-3.5 animate-bounce" /> 🚨 عقب‌افتاده
               </span>
 
-              <span v-if="isTaskRecurring(task)" class="rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1" :class="fontSizeClasses.badge">
-                <RefreshCw class="w-3.5 h-3.5" /> 🔄 {{ task.recurrence_type === 'daily' ? 'روزانه' : task.recurrence_type === 'weekly' ? 'هفتگی' : task.recurrence_type === 'monthly' ? 'ماهانه' : 'دوره‌ای' }}
+              <!-- ۲. سبز: انجام‌شده -->
+              <span v-else-if="task.is_completed || task.status === 'completed'" class="rounded-xl bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 flex items-center gap-1 font-black" :class="fontSizeClasses.badge">
+                <CheckCircle2 class="w-3.5 h-3.5" /> ✅ انجام‌شده {{ isTaskRecurring(task) ? '(موعد بعدی: ' + getNextActionDate(task) + ')' : '' }}
               </span>
 
-              <span v-else class="rounded-xl bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1" :class="fontSizeClasses.badge">
-                <Tag class="w-3.5 h-3.5" /> 📌 ساده
+              <!-- ۳. زرد: کارهای امروز -->
+              <span v-else-if="task.due_date === new Date().toISOString().split('T')[0]" class="rounded-xl bg-amber-500/30 text-amber-300 border border-amber-500/50 flex items-center gap-1 font-black" :class="fontSizeClasses.badge">
+                <Zap class="w-3.5 h-3.5 text-yellow-300" /> ⚡ امروز
+              </span>
+
+              <!-- ۴. آبی: در انتظار موعد -->
+              <span v-else class="rounded-xl bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1 font-black" :class="fontSizeClasses.badge">
+                <Clock class="w-3.5 h-3.5" /> ⏳ در انتظار موعد
               </span>
             </div>
 
@@ -507,7 +488,7 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- عنوان تسک و چک‌باکس -->
+          <!-- عنوان و چک‌باکس -->
           <div class="flex items-start gap-3 mb-3" @click.stop="toggleTask(task)">
             <button class="w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all mt-0.5 flex-shrink-0" :class="(task.is_completed || task.status === 'completed') ? 'bg-purple-600 border-purple-600 text-white' : 'border-white/30 text-transparent'">
               <Check class="w-5 h-5" />
@@ -521,7 +502,6 @@ onMounted(async () => {
           <p v-if="task.description" class="line-clamp-2 mb-4 mr-10" :class="[fontSizeClasses.desc, fontColorClasses.desc]">{{ task.description }}</p>
         </div>
 
-        <!-- 🗓️ فوتر کارت: نمایش صریح تاریخ اقدام / مهلت بعدی + تاریخ آخرین اقدام -->
         <div class="pt-3 border-t space-y-1.5" :class="fontColorClasses.border">
           <div class="flex items-center justify-between text-xs font-bold" :class="fontColorClasses.meta">
             <span class="flex items-center gap-1.5" :class="isTaskOverdue(task) ? 'text-red-400 font-black' : ''">
@@ -537,7 +517,7 @@ onMounted(async () => {
 
           <div v-if="task.last_action_date" class="text-[11px] opacity-70 flex items-center gap-1" :class="fontColorClasses.meta">
             <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
-            <span>آخرین تکمیل / اقدام: {{ formatDate(task.last_action_date) }}</span>
+            <span>آخرین اقدام: {{ formatDate(task.last_action_date) }}</span>
           </div>
         </div>
 

@@ -1,6 +1,6 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 
 from app.core.pydantic_types import GDate
 
@@ -17,7 +17,9 @@ class TaskBase(BaseModel):
     recurrence_type: Optional[str] = None
     recurrence_interval: int = 1
     recurrence_end_date: Optional[GDate] = None
+    is_infinite_recurrence: Optional[bool] = True    # گزینه جدید: مداومت دوره تکرار
     priority: int = 0
+    auto_reschedule: Optional[bool] = True
 
 class TaskCreate(TaskBase):
     pass
@@ -36,8 +38,10 @@ class TaskUpdate(BaseModel):
     recurrence_type: Optional[str] = None
     recurrence_interval: Optional[int] = None
     recurrence_end_date: Optional[GDate] = None
+    is_infinite_recurrence: Optional[bool] = None
     priority: Optional[int] = None
     is_completed: Optional[bool] = None
+    auto_reschedule: Optional[bool] = None
 
 class TaskRead(TaskBase):
     id: int
@@ -49,5 +53,4 @@ class TaskRead(TaskBase):
     days_until_recurrence: Optional[int] = None
     suggested_due_date: Optional[GDate] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

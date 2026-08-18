@@ -4,7 +4,7 @@ import { useThemeStore } from '@/stores/theme'
 import { 
   Plus, Trash2, Edit3, Check, X, Target, BarChart3, ChevronDown, 
   ChevronUp, Calendar, ListTodo, Activity, CheckCircle2, Flag, AlertCircle,
-  Eye, ArrowRight, Sparkles
+  Eye, ArrowRight, Sparkles, BookOpen, Info
 } from 'lucide-vue-next'
 import api from '@/services/api'
 import TaskFormModal from '@/components/TaskFormModal.vue'
@@ -22,7 +22,7 @@ const selectedGoalId = ref(null)
 const subGoals = ref([])
 const kpis = ref([])
 const expandedSubGoals = ref({})
-const selectedSubGoal = ref(null) // <--- استیت حالت تمرکز روی گام عملیاتی
+const selectedSubGoal = ref(null)
 const isLoading = ref(false)
 const message = ref('')
 const messageType = ref('success')
@@ -62,7 +62,10 @@ const openFullDesc = (text) => {
 }
 
 const fetchGoals = async () => {
-  try { const res = await api.get('/goals'); goals.value = res.data } catch (e) {}
+  try { 
+    const res = await api.get('/goals')
+    goals.value = res.data 
+  } catch (e) {}
 }
 
 const fetchSubGoals = async () => {
@@ -75,7 +78,6 @@ const fetchSubGoals = async () => {
     }))
     res.data.forEach(sg => { if (expandedSubGoals.value[sg.id] === undefined) expandedSubGoals.value[sg.id] = true })
     
-    // بروزرسانی گام در حالت تمرکز
     if (selectedSubGoal.value) {
       const updated = subGoals.value.find(s => s.id === selectedSubGoal.value.id)
       if (updated) selectedSubGoal.value = updated
@@ -90,13 +92,53 @@ const fetchKPIs = async () => {
 
 const selectGoal = (id) => { selectedGoalId.value = id; selectedSubGoal.value = null; fetchSubGoals(); fetchKPIs() }
 
-// باز کردن فرم ساخت گام جدید در ابتدای صفحه
 const openNewSubGoalForm = () => {
   editingSubGoal.value = null
   subGoalForm.value = { title: '', description: '', start_date: '', target_date: '', status: 'not_started', order_index: 0 }
   showSubGoalForm.value = true
-  // اسکرول نرم به بالاترین قسمت صفحه
+  showKPIForm.value = false
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const openNewKPIForm = () => {
+  editingKPI.value = null
+  kpiForm.value = { title: '', unit: 'عدد', target_value: 0, current_value: 0, frequency: 'monthly' }
+  showKPIForm.value = true
+  showSubGoalForm.value = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const openEditKPI = (k) => {
+  editingKPI.value = k
+  kpiForm.value = { ...k }
+  showKPIForm.value = true
+  showSubGoalForm.value = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const saveKPI = async () => {
+  if (!kpiForm.value.title.trim()) return
+  try {
+    if (editingKPI.value) {
+      await api.put(`/roadmap/kpis/${editingKPI.value.id}`, kpiForm.value)
+    } else {
+      await api.post(`/roadmap/goal/${selectedGoalId.value}/kpis`, kpiForm.value)
+    }
+    showKPIForm.value = false
+    await fetchKPIs()
+    showToast('✅ شاخص کلیدی با موفقیت ذخیره شد')
+  } catch (e) {
+    showToast('❌ خطا در ذخیره شاخص', 'error')
+  }
+}
+
+const deleteKPI = async (id) => {
+  if (!confirm('آیا این شاخص کلیدی حذف شود؟')) return
+  try {
+    await api.delete(`/roadmap/kpis/${id}`)
+    await fetchKPIs()
+    showToast('🗑️ شاخص حذف شد')
+  } catch (e) {}
 }
 
 const selectSubGoalForFocus = (sg) => {
@@ -182,6 +224,9 @@ onMounted(() => {
     if (savedGoalId) {
       selectGoal(Number(savedGoalId))
       sessionStorage.removeItem('active_goal_id')
+    } else if (goals.value.length > 0) {
+      // انتخاب اتوماتیک اولین هدف جهت لود آنی گام‌ها
+      selectGoal(goals.value[0].id)
     }
   })
   api.get('/tasks/categories').then(res => categories.value = res.data)
@@ -203,13 +248,18 @@ onMounted(() => {
         <p class="opacity-70 text-lg md:text-xl" :style="{ color: 'var(--text-secondary)' }">مسیر هوشمند و دو ستونه رسیدن به اهداف</p>
       </div>
 
-      <!-- دکمه ساخت گام جدید (اسکرول و باز شدن در ابتدای صفحه) -->
-      <button v-if="selectedGoalId" @click="openNewSubGoalForm" class="px-8 py-4 rounded-2xl text-white font-black text-base md:text-lg transition shadow-xl hover:scale-105 active:scale-95 shadow-purple-500/20 bg-gradient-to-r from-purple-600 to-indigo-600">
-        <Plus class="w-6 h-6 inline-block ml-2" /> تعریف گام جدید
-      </button>
+      <div v-if="selectedGoalId" class="flex items-center gap-3">
+        <button @click="openNewKPIForm" class="px-6 py-4 rounded-2xl text-white font-bold text-sm bg-white/10 hover:bg-white/20 transition shadow-lg border border-white/10">
+          <Plus class="w-5 h-5 inline-block ml-1 text-blue-400" /> افزودن KPI
+        </button>
+
+        <button @click="openNewSubGoalForm" class="px-8 py-4 rounded-2xl text-white font-black text-base md:text-lg transition shadow-xl hover:scale-105 active:scale-95 shadow-purple-500/20 bg-gradient-to-r from-purple-600 to-indigo-600">
+          <Plus class="w-6 h-6 inline-block ml-2" /> تعریف گام جدید
+        </button>
+      </div>
     </div>
 
-    <!-- 🌟 فرم تعریف/ویرایش گام جدید مستقیم در ابتدای صفحه (Top-Page Form) -->
+    <!-- 🌟 فرم تعریف/ویرایش گام جدید -->
     <div v-if="showSubGoalForm" class="mb-10 p-8 rounded-3xl border-2 border-purple-500/40 bg-slate-900/90 shadow-[0_0_50px_rgba(168,85,247,0.2)] animate-in slide-in-from-top duration-300">
       <div class="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
         <h3 class="text-2xl font-black text-white flex items-center gap-2">
@@ -246,6 +296,48 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- 🌟 فرم تعریف/ویرایش شاخص کلیدی (KPI) -->
+    <div v-if="showKPIForm" class="mb-10 p-8 rounded-3xl border-2 border-blue-500/40 bg-slate-900/90 shadow-[0_0_50px_rgba(59,130,246,0.2)] animate-in slide-in-from-top duration-300">
+      <div class="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
+        <h3 class="text-2xl font-black text-white flex items-center gap-2">
+          <Activity class="w-6 h-6 text-blue-400" />
+          {{ editingKPI ? 'ویرایش شاخص عملکرد (KPI)' : 'تعریف شاخص عملکرد جدید (KPI)' }}
+        </h3>
+        <button @click="showKPIForm = false" class="p-2 text-gray-400 hover:text-white"><X class="w-6 h-6" /></button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-300 mb-1">عنوان شاخص (مثلاً: تعداد برنامه‌های مطالعه‌شده)</label>
+          <input v-model="kpiForm.title" placeholder="عنوان شاخص..." class="w-full p-4 rounded-2xl bg-white/5 border border-white/10 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none transition" />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-300 mb-1">واحد اندازه‌گیری (مثلاً: صفحه، ساعت، کیلوگرم)</label>
+            <input v-model="kpiForm.unit" placeholder="واحد..." class="w-full p-4 rounded-2xl bg-white/5 border border-white/10 text-white text-sm outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-300 mb-1">مقدار هدف نهایی</label>
+            <input v-model.number="kpiForm.target_value" type="number" class="w-full p-4 rounded-2xl bg-white/5 border border-white/10 text-white text-sm outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-300 mb-1">مقدار فعلی محقق‌شده</label>
+            <input v-model.number="kpiForm.current_value" type="number" class="w-full p-4 rounded-2xl bg-white/5 border border-white/10 text-white text-sm outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-4 mt-6 pt-4 border-t border-white/10">
+        <button @click="saveKPI" class="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg transition">
+          ذخیره شاخص کلیدی
+        </button>
+        <button @click="showKPIForm = false" class="px-8 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl transition">
+          لغو
+        </button>
+      </div>
+    </div>
+
     <!-- Goal Selection Grid -->
     <div class="mb-12">
       <label class="text-xs font-bold mb-4 block opacity-50 uppercase tracking-widest text-white">انتخاب هدف فعال شما</label>
@@ -264,23 +356,30 @@ onMounted(() => {
       <section class="rounded-3xl p-8 border-2 shadow-sm" :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-2xl font-black flex items-center gap-3"><Activity class="w-8 h-8 text-blue-500" /> شاخص‌های کلیدی (KPI)</h2>
+          <button @click="openNewKPIForm" class="text-xs text-blue-400 hover:underline font-bold">+ افزودن شاخص جدید</button>
         </div>
         <div v-if="kpis.length === 0" class="text-center py-6 opacity-40 text-sm">شاخصی برای این هدف تعریف نشده است.</div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div v-for="kpi in kpis" :key="kpi.id" class="p-5 rounded-2xl border-2" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }">
-            <p class="text-sm font-bold opacity-70 mb-3">{{ kpi.title }}</p>
+          <div v-for="kpi in kpis" :key="kpi.id" class="p-5 rounded-2xl border-2 relative group" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }">
+            <div class="flex justify-between items-start mb-3">
+              <p class="text-sm font-bold opacity-70">{{ kpi.title }}</p>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button @click="openEditKPI(kpi)" class="p-1 hover:bg-white/10 text-gray-300 rounded"><Edit3 class="w-3.5 h-3.5" /></button>
+                <button @click="deleteKPI(kpi.id)" class="p-1 hover:bg-red-500/20 text-red-400 rounded"><Trash2 class="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
             <div class="flex items-baseline gap-2 mb-3">
               <span class="text-3xl font-black">{{ kpi.current_value }}</span>
               <span class="text-xs opacity-50">از {{ kpi.target_value }} {{ kpi.unit }}</span>
             </div>
             <div class="w-full h-2 rounded-full bg-black/10 overflow-hidden">
-              <div class="h-full bg-blue-500 transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]" :style="{ width: Math.min((kpi.current_value/kpi.target_value*100), 100) + '%' }"></div>
+              <div class="h-full bg-blue-500 transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]" :style="{ width: Math.min((kpi.current_value/(kpi.target_value||1)*100), 100) + '%' }"></div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 🌟 نقشه‌ی اجرایی گام‌ها در چیدمان دو ستونه (Two-Column Steps Grid) -->
+      <!-- 🌟 نقشه‌ی اجرایی گام‌ها در چیدمان دو ستونه -->
       <section class="space-y-6">
         <h2 class="text-2xl font-black px-2 flex items-center gap-3"><ListTodo class="w-8 h-8 text-purple-400" /> نقشه‌ی اجرایی گام‌ها</h2>
         
@@ -297,7 +396,6 @@ onMounted(() => {
                :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
             
             <div>
-              <!-- Header -->
               <div class="flex items-start justify-between gap-4 mb-3">
                 <div>
                   <h3 class="text-xl font-black group-hover:text-purple-400 transition" :style="{ color: 'var(--text-primary)' }">{{ sg.title }}</h3>
@@ -314,7 +412,6 @@ onMounted(() => {
                 </div>
               </div>
 
-              <!-- Progress bar -->
               <div class="space-y-2 border-t pt-3 mb-4" :style="{ borderColor: 'var(--border)' }">
                 <div class="flex items-center justify-between text-xs font-bold">
                   <span class="opacity-70">پیشرفت گام:</span>
@@ -326,7 +423,6 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- Bottom Actions -->
             <div class="flex items-center justify-between gap-2 pt-3 border-t" :style="{ borderColor: 'var(--border)' }" @click.stop>
               <button @click="selectSubGoalForFocus(sg)" class="px-3 py-1.5 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1.5">
                 <Eye class="w-3.5 h-3.5 text-amber-400" />
@@ -344,14 +440,12 @@ onMounted(() => {
       </section>
     </div>
 
-    <!-- 🌟 حالت تمرکز هوشمند و سه‌بعدی روی گام عملیاتی (SubGoal Focus Mode) -->
+    <!-- 🌟 حالت تمرکز سه‌بعدی گام عملیاتی -->
     <div v-if="selectedSubGoal" class="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300" @click.self="closeSubGoalFocus">
       
       <div class="w-full max-w-4xl rounded-3xl p-8 max-h-[90vh] overflow-y-auto border-2 border-purple-500/50 shadow-[0_0_60px_rgba(168,85,247,0.3)] bg-slate-900 text-white relative animate-in zoom-in-95 duration-300">
         
-        <!-- دکمه‌های بالای کارت تمرکز -->
         <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
-          
           <button @click="closeSubGoalFocus" class="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black rounded-2xl shadow-xl transition flex items-center gap-2 hover:scale-105">
             <ArrowRight class="w-5 h-5" />
             <span>بازگشت به لیست گام‌ها</span>
@@ -367,12 +461,10 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- نشان ویژه تمرکز -->
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-extrabold text-xs mb-3">
           <Sparkles class="w-4 h-4 animate-spin text-amber-400" /> حالت تمرکز سه‌بعدی گام عملیاتی
         </div>
 
-        <!-- عنوان گام و درصد پیشرفت -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-6 border-b border-white/10">
           <div>
             <h2 class="text-2xl md:text-3xl font-black text-white mb-2">{{ selectedSubGoal.title }}</h2>
@@ -390,7 +482,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- لیست کامل تسک‌های مربوط به این گام -->
         <div class="space-y-4 mb-8">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-lg font-black text-white flex items-center gap-2">
@@ -425,7 +516,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- اکشن اصلی پایانی -->
         <div class="flex items-center justify-between gap-4 pt-4 border-t border-white/10">
           <button @click="goToTasks(selectedSubGoal.id, selectedGoalId)" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs transition flex items-center gap-2">
             <span>انتقال تسک‌ها به اتاق عملیات</span>

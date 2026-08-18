@@ -6,7 +6,8 @@ import { useAuthStore } from '@/stores/auth'
 import AnalogClock from '@/components/AnalogClock.vue'
 import { 
   LayoutDashboard, ListTodo, Target, Wallet, Film, MapPin, BookOpen, Download,
-  Menu, X, LogOut, Calendar, Clock, Palette, Lock, KeyRound, Lightbulb, Type, Sparkles 
+  Menu, X, LogOut, Calendar, Clock, Palette, Lock, KeyRound, Lightbulb, Type, Sparkles,
+  HeartPulse, Award
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -36,6 +37,8 @@ let inactivityTimer = null
 const menuItems = [
   { path: '/', label: 'داشبورد', icon: LayoutDashboard },
   { path: '/mentor', label: 'منتور هوشمند', icon: Sparkles },
+  { path: '/bio', label: 'پایش زیست و سلامت', icon: HeartPulse },
+  { path: '/skills', label: 'بانک مهارت‌ها', icon: Award },
   { path: '/ideas', label: 'ایده‌ها', icon: Lightbulb },
   { path: '/tasks', label: 'تسک‌ها', icon: ListTodo },
   { path: '/goals', label: 'اهداف', icon: Target },

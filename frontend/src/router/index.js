@@ -17,6 +17,8 @@ import ProfilePage from '@/pages/ProfilePage.vue'
 import CalendarPage from '@/pages/CalendarPage.vue'
 import IdeasPage from '@/pages/IdeasPage.vue'
 import MentorPage from '@/pages/MentorPage.vue'
+import BioTrackerPage from '@/pages/BioTrackerPage.vue'
+import SkillsPage from '@/pages/SkillsPage.vue'
 
 const routes = [
   { path: '/login', component: LoginPage, meta: { guest: true } },
@@ -25,6 +27,8 @@ const routes = [
   { path: '/', component: DashboardPage, meta: { requiresAuth: true } },
   { path: '/ideas', component: IdeasPage, meta: { requiresAuth: true } },
   { path: '/mentor', component: MentorPage, meta: { requiresAuth: true } },
+  { path: '/bio', component: BioTrackerPage, meta: { requiresAuth: true } },
+  { path: '/skills', component: SkillsPage, meta: { requiresAuth: true } },
   { path: '/tasks', component: TasksPage, meta: { requiresAuth: true } },
   { path: '/goals', component: GoalsPage, meta: { requiresAuth: true } },
   { path: '/roadmap', component: RoadmapPage, meta: { requiresAuth: true } },

@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { X, AlertCircle, Calendar, RefreshCw, Star, Tag, AlignLeft, Target, Layers, Flag, CheckCircle2, Clock, Info } from 'lucide-vue-next'
+import { X, AlertCircle, Calendar, RefreshCw, Star, Tag, AlignLeft, Target, Layers, Flag, CheckCircle2, Clock, Info, AlertTriangle, Zap, ShieldCheck } from 'lucide-vue-next'
 import DateInputPersian from './DateInputPersian.vue'
-import { toShamsiDisplay } from '../utils/date'
+import { toShamsiDisplay, toGregorianISO } from '../utils/date'
 import api from '@/services/api'
 
 const props = defineProps({
@@ -19,6 +19,7 @@ const emit = defineEmits(['update:modelValue', 'update:form', 'save', 'goal-chan
 
 const localSubGoals = ref([])
 const localErrors = ref({})
+const todayISO = new Date().toISOString().split('T')[0]
 
 // لود خودکار گام‌ها با تغییر هدف
 watch(() => props.form.goal_id, async (newId) => {
@@ -30,13 +31,29 @@ watch(() => props.form.goal_id, async (newId) => {
   } else { localSubGoals.value = []; }
 }, { immediate: true });
 
-// تنظیم پیش‌فرض برنامه‌ریزی اتوماتیک دوره‌ای
+// تنظیم پیش‌فرض برنامه‌ریزی اتوماتیک دوره‌ای و مداومت تکرار
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     localErrors.value = {}
     if (formValue.value.auto_reschedule === undefined) {
       formValue.value.auto_reschedule = true
     }
+    if (formValue.value.is_infinite_recurrence === undefined) {
+      formValue.value.is_infinite_recurrence = true
+    }
+    if (!formValue.value.recurrence_interval || formValue.value.recurrence_interval < 1) {
+      formValue.value.recurrence_interval = 1
+    }
+    if (!formValue.value.last_action_date) {
+      formValue.value.last_action_date = todayISO
+    }
+  }
+})
+
+// همگام‌سازی اتوماتیک تاریخ آخرین اقدام با تغییر وضعیت به «در حال انجام» یا «تکمیل»
+watch(() => props.form.status, (newStatus) => {
+  if (newStatus === 'completed' || newStatus === 'in_progress') {
+    formValue.value.last_action_date = todayISO
   }
 })
 
@@ -52,6 +69,41 @@ const recurrenceOptions = [
 const formValue = computed({
   get: () => props.form,
   set: (val) => emit('update:form', val)
+})
+
+// 🌟 محاسبه «بج وضعیت زنده» جهت نمایش در هدر فرم برای یکپارچگی کامل با کارت بیرونی
+const liveStatusBadge = computed(() => {
+  const f = formValue.value
+  const isComp = f.status === 'completed' || f.is_completed
+  
+  if (isComp) {
+    return { label: '✅ انجام‌شده', bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' }
+  }
+  
+  if (f.due_date && f.due_date < todayISO) {
+    return { label: '🚨 عقب‌افتاده', bg: 'bg-red-500/20 text-red-300 border-red-500/40' }
+  }
+  
+  if (f.due_date === todayISO || f.register_date === todayISO) {
+    return { label: '⚡ امروز / آماده اقدام', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40' }
+  }
+  
+  return { label: '⏳ در انتظار موعد', bg: 'bg-blue-500/20 text-blue-300 border-blue-500/40' }
+})
+
+const isTaskOverdue = computed(() => {
+  const f = formValue.value
+  return (f.status !== 'completed' && !f.is_completed) && (f.due_date && f.due_date < todayISO)
+})
+
+const recurrenceIntervalHint = computed(() => {
+  const type = formValue.value.recurrence_type
+  const interval = formValue.value.recurrence_interval || 1
+  if (type === 'daily') return `اجرا: هر ${interval} روز یک‌بار`
+  if (type === 'weekly') return `اجرا: هر ${interval} هفته یک‌بار`
+  if (type === 'monthly') return `اجرا: هر ${interval} ماه یک‌بار`
+  if (type === 'yearly') return `اجرا: هر ${interval} سال یک‌بار`
+  return ''
 })
 
 const suggestedDueDate = () => {
@@ -98,7 +150,7 @@ const submit = () => {
 </script>
 
 <template>
-  <!-- 🚀 استفاده از Teleport جهت انتقال مستقیم مودال به rیشه مرورگر (دقیقاً مرکز مانیتور) -->
+  <!-- 🚀 استفاده از Teleport جهت انتقال مستقیم مودال به ریشه مرورگر (دقیقاً مرکز مانیتور) -->
   <Teleport to="body">
     <div v-if="modelValue" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-6 bg-black/80 backdrop-blur-md">
       
@@ -112,7 +164,13 @@ const submit = () => {
               <Tag class="w-6 h-6" />
             </div>
             <div>
-              <h2 class="text-2xl font-black" :style="{ color: 'var(--text-primary)' }">{{ editingTask ? 'ویرایش تسک' : 'تعریف تسک جدید' }}</h2>
+              <div class="flex items-center gap-2">
+                <h2 class="text-2xl font-black" :style="{ color: 'var(--text-primary)' }">{{ editingTask ? 'ویرایش تسک' : 'تعریف تسک جدید' }}</h2>
+                <!-- 🌟 بج وضعیت زنده صریح درون فرم -->
+                <span class="px-3 py-1 rounded-xl border text-xs font-black" :class="liveStatusBadge.bg">
+                  {{ liveStatusBadge.label }}
+                </span>
+              </div>
               <p class="text-xs font-bold opacity-70 mt-1" :style="{ color: 'var(--text-secondary)' }">فرم ساخت تسک با الزامات و راهنمای شفاف کادرها</p>
             </div>
           </div>
@@ -122,6 +180,12 @@ const submit = () => {
         <!-- محتوای فرم با اسکرول بار داخلی -->
         <div class="space-y-6 text-right overflow-y-auto pl-2 pr-1 custom-scrollbar max-h-[65vh]" dir="rtl">
           
+          <!-- بنر هشدار در صورت عقب‌افتاده بودن تسک -->
+          <div v-if="isTaskOverdue" class="p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-200 text-xs font-bold flex items-center gap-2">
+            <AlertTriangle class="w-5 h-5 text-red-400 shrink-0 animate-bounce" />
+            <span>🚨 این تسک عقب‌افتاده است (مهلت: {{ toShamsiDisplay(formValue.due_date) }}). تغییر وضعیت به «در حال انجام» یا «تکمیل شده» توصیه می‌شود.</span>
+          </div>
+
           <!-- بخش ۱: عنوان و توضیحات تسک -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-4">
@@ -235,7 +299,7 @@ const submit = () => {
             </div>
           </div>
 
-          <!-- بخش ۳: تنظیمات زمان‌بندی، تکرار و وضعیت -->
+          <!-- بخش ۳: تنظیمات زمان‌بندی، ضریب تکرار دوره و وضعیت -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 rounded-3xl border-2 border-dashed bg-black/5 dark:bg-white/5" :style="{ borderColor: 'var(--border)' }">
             
             <!-- تاریخ و مدت -->
@@ -251,7 +315,7 @@ const submit = () => {
               <p class="text-xs text-blue-500 font-bold mt-1.5">📅 پیشنهادی مهلت: {{ suggestedDueDate() }}</p>
             </div>
 
-            <!-- تنظیمات تکرار + گزینه برنامه‌ریزی اتوماتیک -->
+            <!-- تنظیمات تکرار + ضریب تکرار (فاصله هر دوره) + سویچ مداومت تکرار -->
             <div class="space-y-3">
               <label class="text-sm font-black flex items-center gap-2" :style="{ color: 'var(--text-primary)' }">
                 <RefreshCw class="w-4 h-4 text-amber-400" /> تنظیمات تکرار دوره
@@ -261,26 +325,47 @@ const submit = () => {
               </select>
               <p class="text-xs font-bold" :style="{ color: 'var(--text-secondary)' }">بازه تکرار خودکار تسک در برنامه</p>
 
+              <!-- کادر ضریب تکرار و فاصله دوره (فعال برای تسک‌های غیر یک‌باره) -->
               <div v-if="formValue.recurrence_type !== 'none'" class="space-y-3 pt-2">
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <input v-model.number="formValue.recurrence_interval" type="number" min="1" placeholder="فاصله (مثلاً ۱)" class="w-full px-3 py-2 rounded-xl border-2 border-slate-300 dark:border-white/30 text-xs font-bold" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }" />
-                    <p class="text-xs font-bold mt-1" :style="{ color: 'var(--text-secondary)' }">ضریب تکرار</p>
-                  </div>
-                  <div>
-                    <DateInputPersian v-model="formValue.recurrence_end_date" placeholder="تا تاریخ..." />
-                    <p class="text-xs font-bold mt-1" :style="{ color: 'var(--text-secondary)' }">پایان دوره</p>
-                  </div>
+                
+                <div>
+                  <label class="text-xs font-bold block mb-1" :style="{ color: 'var(--text-secondary)' }">
+                    🔢 ضریب تکرار (چند دوره یک‌بار)
+                  </label>
+                  <input 
+                    v-model.number="formValue.recurrence_interval" 
+                    type="number" 
+                    min="1" 
+                    placeholder="مثلاً: ۳ (برای ۳ روز یک‌بار)" 
+                    class="w-full px-4 py-2.5 rounded-xl border-2 border-slate-300 dark:border-white/30 text-sm font-bold outline-none" 
+                    :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }" 
+                  />
+                  <p class="text-xs font-black text-amber-400 mt-1 flex items-center gap-1">
+                    <Info class="w-3.5 h-3.5" /> {{ recurrenceIntervalHint }}
+                  </p>
                 </div>
 
-                <!-- 🔄 گزینه جدید: تیک برنامه‌ریزی اتوماتیک دوره‌ای -->
+                <!-- ♾️ گزینه مداومت دوره تکرار -->
+                <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <label class="flex items-center gap-2 cursor-pointer text-xs font-black text-amber-300">
+                    <input type="checkbox" v-model="formValue.is_infinite_recurrence" class="w-4 h-4 rounded text-amber-500" />
+                    <span>♾️ مداومت دوره تکرار (بدون تاریخ پایان)</span>
+                  </label>
+                </div>
+
+                <div v-if="!formValue.is_infinite_recurrence">
+                  <label class="text-xs font-bold block mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ پایان دوره تکرار</label>
+                  <DateInputPersian v-model="formValue.recurrence_end_date" placeholder="پایان دوره..." />
+                </div>
+
+                <!-- 🔄 گزینه برنامه‌ریزی اتوماتیک دوره‌ای -->
                 <div class="p-3.5 rounded-2xl bg-purple-500/10 border-2 border-purple-500/40 mt-2">
                   <label class="flex items-center gap-2 cursor-pointer text-xs font-black text-purple-400 dark:text-purple-300">
                     <input type="checkbox" v-model="formValue.auto_reschedule" class="w-4 h-4 rounded border-white/30 text-purple-600 focus:ring-purple-500" />
                     <span>🔄 برنامه‌ریزی اتوماتیک دوره‌ای</span>
                   </label>
                   <p class="text-xs font-bold mt-1.5 leading-relaxed" :style="{ color: 'var(--text-secondary)' }">
-                    با تیک زدن تسک، مهلت آن خودکار برای فردا/دوره بعدی تنظیم می‌شود.
+                    با تیک زدن تسک، مهلت آن خودکار برای دوره بعدی تنظیم می‌شود.
                   </p>
                 </div>
               </div>
@@ -299,9 +384,11 @@ const submit = () => {
               <p class="text-xs font-bold" :style="{ color: 'var(--text-secondary)' }">مرحله فعلی پیشرفت کار</p>
 
               <div class="pt-1">
-                <label class="text-xs font-bold block mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ آخرین اقدام</label>
+                <label class="text-xs font-bold block mb-1" :style="{ color: 'var(--text-secondary)' }">تاریخ آخرین اقدام *</label>
                 <DateInputPersian v-model="formValue.last_action_date" />
-                <p class="text-xs font-bold mt-1.5" :style="{ color: 'var(--text-secondary)' }">آخرین بار چه زمانی روی این کار اقدام کرده‌اید</p>
+                <p class="text-xs font-bold mt-1.5 text-emerald-400 flex items-center gap-1">
+                  <ShieldCheck class="w-3.5 h-3.5" /> با تغییر وضعیت، تاریخ آخرین اقدام اتوماتیک بروزرسانی می‌شود.
+                </p>
               </div>
             </div>
 
