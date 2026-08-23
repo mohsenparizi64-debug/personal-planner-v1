@@ -1,0 +1,311 @@
+You are a senior full-stack developer and software architect. I need you to continue developing a Personal Planner PWA application. Here is the complete context of what has been built so far, the architecture decisions, and the current state of the project.
+
+---
+
+## PROJECT OVERVIEW
+
+**Name:** Personal Planner (پلنر شخصی)
+**Type:** Progressive Web Application (PWA)
+**Target Platforms:** iPhone, Laptop, Desktop browsers
+**Language:** UI in Persian (Farsi), Code in English
+**Architecture:** Decoupled SPA (Vue.js Frontend + FastAPI Backend)
+
+---
+
+## TECH STACK
+
+### Backend
+- **Framework:** FastAPI (Python 3.13) with async/await
+- **ORM:** SQLAlchemy 2.0 with async sessions
+- **Database:** SQLite (development) → PostgreSQL (production planned)
+- **Migrations:** Alembic (configured but currently using auto-create on startup)
+- **Auth:** JWT with python-jose, password hashing with SHA256 (temporary, bcrypt had issues on Windows)
+- **Server:** Uvicorn with hot reload
+
+### Frontend
+- **Framework:** Vue 3 with Composition API (`<script setup>`)
+- **Build Tool:** Vite
+- **State Management:** Pinia
+- **Routing:** Vue Router 4
+- **CSS:** Tailwind CSS 3 with custom theme system
+- **Icons:** Lucide Vue Next
+- **HTTP Client:** Axios with interceptors for JWT
+- **Fonts:** Vazirmatn (modern), BNazanin (classic Persian)
+
+---
+
+## DIRECTORY STRUCTURE
+personal-planner/
+├── backend/
+│ ├── app/
+│ │ ├── api/v1/
+│ │ │ ├── auth.py # Register, Login endpoints
+│ │ │ ├── tasks.py # Task CRUD (temp without auth)
+│ │ │ ├── goals.py # Goal CRUD + GoalLog endpoints
+│ │ │ └── roadmap.py # SubGoal, SubGoalTask, KPI endpoints
+│ │ ├── core/
+│ │ │ ├── config.py # Settings (DB URL, JWT secret, etc.)
+│ │ │ ├── security.py # Password hashing, JWT encode/decode
+│ │ │ └── deps.py # OAuth2 scheme, get_current_user (not used yet)
+│ │ ├── crud/
+│ │ │ ├── user.py # User CRUD
+│ │ │ ├── task.py # Task CRUD
+│ │ │ ├── goal.py # Goal CRUD + GoalLog functions
+│ │ │ └── roadmap.py # SubGoal, SubGoalTask, KPI CRUD
+│ │ ├── db/
+│ │ │ ├── base.py # DeclarativeBase, TimestampMixin
+│ │ │ └── session.py # Async engine, session factory
+│ │ ├── models/
+│ │ │ ├── user.py # User model
+│ │ │ ├── task.py # Task model
+│ │ │ ├── goal.py # Goal model
+│ │ │ ├── goal_log.py # GoalLog model (audit trail)
+│ │ │ ├── sub_goal.py # SubGoal + SubGoalTask models
+│ │ │ └── kpi.py # KPI model
+│ │ ├── schemas/
+│ │ │ ├── user.py # UserCreate, UserRead, Token
+│ │ │ ├── task.py # TaskCreate, TaskUpdate, TaskRead
+│ │ │ ├── goal.py # GoalCreate, GoalUpdate, GoalRead
+│ │ │ ├── goal_log.py # GoalLogRead
+│ │ │ ├── sub_goal.py # SubGoal + SubGoalTask schemas
+│ │ │ └── kpi.py # KPICreate, KPIUpdate, KPIRead
+│ │ ├── services/ # (empty - for future business logic)
+│ │ └── main.py # FastAPI app, CORS, router registration, auto-create tables
+│ ├── alembic/ # Configured but not actively used
+│ ├── venv/ # Python virtual environment
+│ └── requirements.txt
+├── frontend/
+│ ├── src/
+│ │ ├── components/
+│ │ │ └── AnalogClock.vue # Canvas-based analog clock widget
+│ │ ├── pages/
+│ │ │ ├── LoginPage.vue # Login page with glass-morphism
+│ │ │ ├── RegisterPage.vue # Register page
+│ │ │ ├── DashboardPage.vue # Stats dashboard
+│ │ │ ├── TasksPage.vue # Task management with CRUD
+│ │ │ ├── GoalsPage.vue # Goal management with audit log timeline
+│ │ │ └── RoadmapPage.vue # Roadmap: KPIs + SubGoals with tasks
+│ │ ├── router/
+│ │ │ └── index.js # Routes: /, /login, /register, /tasks, /goals, /roadmap
+│ │ ├── services/
+│ │ │ └── api.js # Axios instance with JWT interceptor
+│ │ ├── stores/
+│ │ │ ├── auth.js # Auth store (login, register, logout, token)
+│ │ │ └── theme.js # Theme store (3 themes)
+│ │ ├── App.vue # Main layout: sidebar, header, theme system
+│ │ ├── main.js # App initialization with Pinia + Router
+│ │ └── style.css # Global styles, theme variables, animations
+│ ├── index.html # RTL, Persian lang
+│ ├── tailwind.config.js # Tailwind with custom colors
+│ ├── postcss.config.js # PostCSS config
+│ ├── vite.config.js # Vite with path alias @/
+│ └── package.json
+
+text
+
+---
+
+## DATABASE MODELS
+
+### User
+- id, email (unique), hashed_password, is_active
+- Timestamps: created_at, updated_at
+
+### Task
+- id, title, description, due_date, priority (0-2), is_completed
+- owner_id → FK users.id
+- Timestamps: created_at, updated_at
+
+### Goal
+- id, title, description, start_date, target_date
+- current_status, current_obstacle, next_step
+- priority (0-2), success_criteria, is_completed, progress_percent
+- owner_id → FK users.id
+- Timestamps: created_at, updated_at
+
+### GoalLog (Audit Trail)
+- id, goal_id → FK goals.id (CASCADE), action (created/updated/deleted)
+- field_name, old_value, new_value, description
+- owner_id → FK users.id
+- Timestamps: created_at, updated_at
+
+### SubGoal
+- id, goal_id → FK goals.id (CASCADE), title, description
+- start_date, target_date, status (not_started/in_progress/completed)
+- progress_percent, order_index
+- owner_id → FK users.id
+- Relationship: tasks → SubGoalTask (cascade delete)
+- Timestamps: created_at, updated_at
+
+### SubGoalTask
+- id, sub_goal_id → FK sub_goals.id (CASCADE), title
+- is_completed, priority, due_date
+- owner_id → FK users.id
+- Timestamps: created_at, updated_at
+
+### KPI
+- id, goal_id → FK goals.id (CASCADE), title, unit
+- target_value (float), current_value (float)
+- frequency (daily/weekly/monthly), last_updated
+- owner_id → FK users.id
+- Timestamps: created_at, updated_at
+
+---
+
+## API ENDPOINTS
+
+### Auth
+- POST /api/v1/auth/register - Register new user
+- POST /api/v1/auth/login - Login, returns JWT
+
+### Tasks
+- GET /api/v1/tasks - List tasks (temp: uses fixed user_id=1)
+- POST /api/v1/tasks - Create task
+- PUT /api/v1/tasks/{id} - Update task
+- DELETE /api/v1/tasks/{id} - Delete task
+
+### Goals
+- GET /api/v1/goals - List goals (temp: user_id=1)
+- POST /api/v1/goals - Create goal (auto-logs creation)
+- PUT /api/v1/goals/{id} - Update goal (auto-logs field changes)
+- DELETE /api/v1/goals/{id} - Delete goal (auto-logs deletion)
+- DELETE /api/v1/goals/all/reset - Delete all goals
+- GET /api/v1/goals/logs - Get recent audit logs
+- GET /api/v1/goals/{id}/logs - Get logs for specific goal
+
+### Roadmap
+- GET /api/v1/roadmap/goal/{goal_id}/subgoals - List subgoals with tasks
+- POST /api/v1/roadmap/goal/{goal_id}/subgoals - Create subgoal
+- PUT /api/v1/roadmap/subgoals/{id} - Update subgoal
+- DELETE /api/v1/roadmap/subgoals/{id} - Delete subgoal
+- POST /api/v1/roadmap/subgoals/{id}/tasks - Add task to subgoal
+- PUT /api/v1/roadmap/tasks/{id} - Update subgoal task
+- DELETE /api/v1/roadmap/tasks/{id} - Delete subgoal task
+- GET /api/v1/roadmap/goal/{goal_id}/kpis - List KPIs
+- POST /api/v1/roadmap/goal/{goal_id}/kpis - Create KPI
+- PUT /api/v1/roadmap/kpis/{id} - Update KPI
+- DELETE /api/v1/roadmap/kpis/{id} - Delete KPI
+
+---
+
+## THEME SYSTEM
+
+The app has 3 themes controlled by `themeStore` (Pinia). Theme is applied via CSS class on `<html>` and CSS custom properties.
+
+### 1. Dark Modern (dark-modern) - Default
+- Background: #0f0f1a
+- Cards: #1a1a2e
+- Accent: Purple (#8b5cf6)
+- Font: Vazirmatn
+
+### 2. Persian Classic (persian-classic)
+- Background: Warm beige gradients
+- Cards: Light cream with ornamental borders
+- Accent: Gold (#c9a84c)
+- Font: BNazanin + Vazirmatn
+- Decorative: Persian geometric SVG patterns
+
+### 3. Cyber Digital (cyber-digital)
+- Background: Dark (#0a0a0a) with green neon accents
+- Accent: Matrix green (#00ff88)
+- Effects: Scanlines, floating particles
+- Font: Vazirmatn
+
+### CSS Variables used throughout:
+- --bg-primary, --bg-secondary, --bg-card, --bg-hover
+- --text-primary, --text-secondary
+- --accent, --accent-hover
+- --border, --header-bg, --glow
+- --font-family
+
+---
+
+## CURRENT FEATURES
+
+### Completed:
+1. User authentication (register/login with JWT)
+2. Task management with CRUD
+3. Goal management with 7 fields (title, start_date, target_date, current_status, current_obstacle, next_step, priority, success_criteria)
+4. Audit log for all goal changes (created/updated/deleted with field-level tracking)
+5. Roadmap system:
+   - Select a goal → manage its subgoals and KPIs
+   - Subgoals: accordion with status, progress bar, nested tasks
+   - KPIs: cards with target/current values, percentage bar
+6. Three-theme system with switcher in sidebar
+7. Analog clock with canvas in header
+8. Persian (Shamsi) and Gregorian date display
+9. Sidebar navigation with icons
+10. Toast notifications for success/error messages
+11. Glass-morphism design language
+
+### Pending (in roadmap order):
+1. Recurring tasks module
+2. Finance management module
+3. Movie list module
+4. Places module
+5. Proper authentication (remove TEMP_USER_ID hack)
+6. Multi-user with sharing and RBAC
+7. Push notifications
+8. Full PWA (service worker, offline, install on iPhone)
+9. AI integration for priority suggestions
+
+---
+
+## IMPORTANT NOTES FOR CONTINUING DEVELOPMENT
+
+### Authentication Hack:
+Currently all API endpoints use `TEMP_USER_ID = 1` instead of proper JWT auth. The `get_current_user` dependency exists in `app/core/deps.py` but is not used. When implementing proper auth:
+- Import and use `get_current_user` in all routers
+- Replace `TEMP_USER_ID` with `current_user.id`
+- Update frontend to send Bearer token (already configured in axios interceptor)
+
+### MissingGreenlet Issue:
+When returning models with relationships (like SubGoal with tasks), SQLAlchemy async has issues. The pattern to fix:
+```python
+# In CRUD, create a separate function to reload with relationships:
+async def get_sub_goal_by_id(db, id, owner_id):
+    result = await db.execute(
+        select(SubGoal)
+        .where(...)
+        .options(selectinload(SubGoal.tasks))  # Eager load
+    )
+    return result.scalar_one_or_none()
+Database Reset:
+When adding new models, delete planner.db and restart backend. Tables are auto-created on startup.
+
+Frontend API Calls:
+Axios base URL is http://localhost:8000/api/v1. JWT token is stored in localStorage and sent via interceptor.
+
+HOW TO RUN
+Backend:
+bash
+cd backend
+venv\Scripts\activate
+python -m uvicorn app.main:app --reload
+# Runs on http://localhost:8000
+# Swagger docs at http://localhost:8000/docs
+Frontend:
+bash
+cd frontend
+npm run dev
+# Runs on http://localhost:5173
+NEXT STEPS (Requested by User)
+The roadmap page needs the subgoal accordion to persist its open/close state
+
+KPI current values should be editable inline
+
+Progress tracking between subgoals and parent goal
+
+The user wants to build the Finance module next
+
+Please analyze this codebase and continue development. When making changes:
+
+Keep all explanations in Persian for the user
+
+Maintain the three-theme support in all new pages
+
+Follow the established patterns (CRUD → API → Page)
+
+Use the same color/design system
+
+All new code must support the RTL layout
