@@ -13,4 +13,8 @@ backend/planner.db
 # Environment variables
 .env
 
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+
 .continue/
