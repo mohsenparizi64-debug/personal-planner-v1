@@ -3,16 +3,24 @@ import { ref } from 'vue'
 
 export const useThemeStore = defineStore('theme', () => {
   const currentTheme = ref(localStorage.getItem('theme') || 'light-2026')
-  
+
   // 🔤 مقیاس جهانی اندازه‌ فونت کل برنامه (100% | 120% | 135%)
   const fontScale = ref(localStorage.getItem('fontScale') || '100%')
 
+  // 🛡️ لیست تم‌های معتبر (اگه کاربر تم قدیمی داشت، به پیش‌فرض برمیگرده)
+  const validThemes = ['light-2026', 'dark-modern-2026', 'cyber-digital']
+
+  // اگه تم ذخیره‌شده دیگه معتبر نیست (مثلاً کاربر قبلاً dark-modern یا persian-classic داشت)
+  // به تم پیش‌فرض light-2026 برگرد
+  if (!validThemes.includes(currentTheme.value)) {
+    currentTheme.value = 'light-2026'
+    localStorage.setItem('theme', 'light-2026')
+  }
+
   const themes = [
     { id: 'light-2026', label: 'روشن مدرن ۲۰۲۶', icon: '☀️' },
-    { id: 'dark-modern', label: 'مدرن تاریک', icon: '🌙' },
-    { id: 'persian-classic', label: 'کلاسیک ایرانی', icon: '🏛️' },
+    { id: 'dark-modern-2026', label: 'تیره مدرن ۲۰۲۶', icon: '🌙' },
     { id: 'cyber-digital', label: 'رباتیک دیجیتال', icon: '🤖' },
-    { id: 'gemini-theme', label: 'جمنای هوش مصنوعی', icon: '✨' },
   ]
 
   const fontScaleOptions = [
@@ -22,6 +30,11 @@ export const useThemeStore = defineStore('theme', () => {
   ]
 
   function setTheme(themeId) {
+    // اگه تم معتبر نیست، نادیده بگیر
+    if (!validThemes.includes(themeId)) {
+      console.warn(`⚠️ تم "${themeId}" معتبر نیست`)
+      return
+    }
     currentTheme.value = themeId
     localStorage.setItem('theme', themeId)
     applyTheme(themeId)
@@ -43,12 +56,13 @@ export const useThemeStore = defineStore('theme', () => {
   applyTheme(currentTheme.value)
   setFontScale(fontScale.value)
 
-  return { 
-    currentTheme, 
-    themes, 
-    fontScale, 
-    fontScaleOptions, 
-    setTheme, 
-    setFontScale 
+  return {
+    currentTheme,
+    themes,
+    validThemes,
+    fontScale,
+    fontScaleOptions,
+    setTheme,
+    setFontScale
   }
 })

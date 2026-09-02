@@ -36,6 +36,7 @@ class Token(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    remember_me: bool = False  # 🧠 «مرا بخاطر بسپار» — در صورت True توکن ۷ روزه صادر می‌شود
 
 # 🛡️ اسکیمای درخواست ارسال کد OTP
 class SendOTPRequest(BaseModel):

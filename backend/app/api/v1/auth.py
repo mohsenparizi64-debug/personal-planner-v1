@@ -211,8 +211,16 @@ async def login(user_in: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = await get_user_by_identifier(db, clean_identifier)
     if not user or not verify_password(clean_password, user.hashed_password):
         raise HTTPException(status_code=401, detail="ایمیل/شماره موبایل یا کلمه عبور اشتباه است.")
-    
-    access_token = create_access_token(data={"sub": str(user.id)})
+
+    # 🧠 اگر «مرا بخاطر بسپار» فعال باشد، توکن ۷ روزه صادر می‌شود
+    # در غیر این صورت از مقدار پیش‌فرض settings (۱ ساعت) استفاده می‌شود
+    if user_in.remember_me:
+        access_token = create_access_token(
+            data={"sub": str(user.id)},
+            expires_delta=timedelta(days=7)
+        )
+    else:
+        access_token = create_access_token(data={"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserRead)

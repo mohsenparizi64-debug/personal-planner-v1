@@ -1,5 +1,6 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+// v3 - debug logs
+import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Calendar, ChevronRight, ChevronLeft, X, RotateCcw } from 'lucide-vue-next'
 import { toShamsiDisplay, toGregorianISO, detectInputType } from '../utils/date'
 
@@ -13,6 +14,16 @@ const mode = ref('shamsi') // shamsi | gregorian
 const text = ref('')
 const error = ref('')
 const showCalendarPicker = ref(false)
+
+// موقعیت پاپ‌آپ (برای Teleport به body)
+const triggerRef = ref(null)
+// default: دقیقاً وسط یک viewport معمولی (1280x720)
+const popupStyle = ref({
+  top: `${Math.max(20, Math.round((720 - 380) / 2))}px`,
+  left: `${Math.max(20, Math.round((1280 - 288) / 2))}px`,
+  zIndex: '99999',
+  background: '#1e293b'
+})
 
 // وضعیت نمای تقویم: 'days' (روزها) | 'months' (انتخاب ماه) | 'years' (انتخاب سال)
 const calendarViewMode = ref('days')
@@ -205,6 +216,70 @@ function prevDecade() {
   decadeStartYear.value -= 12
 }
 
+// محاسبه موقعیت پاپ‌آپ تقویم و نمایش
+async function toggleCalendar(e) {
+  if (e) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  if (showCalendarPicker.value) {
+    showCalendarPicker.value = false
+    return
+  }
+  calendarViewMode.value = 'days'
+  // استفاده از event target مستقیم - بدون نیاز به ref/nextTick
+  const triggerEl = e?.currentTarget
+  // اول popup رو در state فعال کن (با position موقت وسط صفحه)
+  // بعد در frame بعد، اگه trigger داشتیم، دقیق‌تر محاسبه کن
+  centerPopupInViewport()
+  showCalendarPicker.value = true
+  console.log('[DateInput] opened at', popupStyle.value, 'viewport:', window.innerWidth, 'x', window.innerHeight, 'triggerEl:', triggerEl?.tagName)
+}
+
+// popup را دقیقاً در مرکز viewport فعلی قرار بده
+function centerPopupInViewport() {
+  const popupWidth = 288
+  const popupHeight = 380
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const top = Math.max(20, Math.round((vh - popupHeight) / 2))
+  const left = Math.max(20, Math.round((vw - popupWidth) / 2))
+  console.log('[DateInput] centering:', { top, left, vw, vh })
+  popupStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+    zIndex: '99999'
+  }
+}
+
+// بستن popup با کلیک بیرون
+function onClickOutside(e) {
+  if (!showCalendarPicker.value) return
+  // اگه کلیک روی popup باشه، نادیده بگیر
+  if (e.target.closest('.jalali-calendar-popup')) return
+  // اگه کلیک روی trigger (button با Calendar icon در DateInputPersian) باشه، نادیده بگیر
+  const target = e.target
+  if (target.closest('button[title="فتح تقویم ماهانه"]')) return
+  showCalendarPicker.value = false
+}
+
+// بستن با Escape
+function onEscape(e) {
+  if (e.key === 'Escape' && showCalendarPicker.value) {
+    showCalendarPicker.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', onClickOutside)
+  document.addEventListener('keydown', onEscape)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onClickOutside)
+  document.removeEventListener('keydown', onEscape)
+})
+
 function nextDecade() {
   decadeStartYear.value += 12
 }
@@ -213,10 +288,10 @@ function nextDecade() {
 <template>
   <div class="relative">
     <div class="relative">
-      <button 
-        type="button" 
-        @click="showCalendarPicker = !showCalendarPicker; calendarViewMode = 'days'"
-        class="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white transition"
+      <button
+        type="button"
+        @click="toggleCalendar($event)"
+        class="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white transition z-10"
         title="فتح تقویم ماهانه"
       >
         <Calendar class="w-4 h-4" />
@@ -245,9 +320,12 @@ function nextDecade() {
       <span v-else-if="hint" class="text-[10px] opacity-70" :style="{ color: 'var(--text-secondary)' }">{{ hint }}</span>
     </div>
 
-    <!-- 🗓️ پاپ‌آور تقویم ماهانه شمسی با دکمه‌های سوئیچ شبکه‌ای سال و ماه (Grid Switcher) -->
-    <div v-if="showCalendarPicker" class="absolute right-0 top-12 z-[10000] w-72 p-4 rounded-3xl glass-card border-2 border-purple-500/60 shadow-2xl space-y-3 bg-slate-900 text-white animate-in zoom-in-95 duration-200">
-      
+    <!-- 🗓️ پاپ‌آور تقویم ماهانه شمسی - منتقل‌شده به body -->
+    <Teleport to="body">
+      <div v-if="showCalendarPicker" data-testid="jalali-popup" class="jalali-calendar-popup fixed w-72 p-4 rounded-3xl border-2 border-purple-500 shadow-2xl space-y-3 text-white"
+        :style="{ top: popupStyle.top, left: popupStyle.left, zIndex: '99999', background: '#1e293b' }">
+
+
       <!-- ۱. هدر اصلی تقویم شامل دکمه‌های انتخابی درخشان سال و ماه + بستن X -->
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         
@@ -381,6 +459,7 @@ function nextDecade() {
         </button>
       </div>
 
-    </div>
+      </div>
+    </Teleport>
   </div>
 </template>

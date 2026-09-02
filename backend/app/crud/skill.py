@@ -20,8 +20,10 @@ async def create_skill(db: AsyncSession, user_id: int, data: SkillCreate):
     db.add(s)
     await db.commit()
     await db.refresh(s)
-    s.learning_logs = []
-    return s
+    # لود eager برای learning_logs (جلوگیری از lazy load که در async مشکل ایجاد می‌کنه)
+    q = select(Skill).options(selectinload(Skill.learning_logs)).where(Skill.id == s.id)
+    res = await db.execute(q)
+    return res.scalar_one()
 
 async def update_skill(db: AsyncSession, user_id: int, skill_id: int, data: SkillUpdate):
     q = select(Skill).where(Skill.id == skill_id, Skill.owner_id == user_id)
@@ -31,8 +33,10 @@ async def update_skill(db: AsyncSession, user_id: int, skill_id: int, data: Skil
         for k, v in data.model_dump(exclude_unset=True).items():
             setattr(s, k, v)
         await db.commit()
-        await db.refresh(s)
-        s.learning_logs = []
+        # بارگذاری مجدد با eager load
+        q2 = select(Skill).options(selectinload(Skill.learning_logs)).where(Skill.id == skill_id)
+        res2 = await db.execute(q2)
+        return res2.scalar_one()
     return s
 
 async def get_learning_logs(db: AsyncSession, user_id: int, limit: int = 5000):

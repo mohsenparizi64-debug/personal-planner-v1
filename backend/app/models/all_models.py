@@ -393,10 +393,18 @@ class Skill(Base, TimestampMixin):
     category = Column(String, nullable=True)
     status = Column(String, default="in_progress")
     progress_percent = Column(Integer, default=0)
-    goal_id = Column(Integer, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
+    goal_id = Column(Integer, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)  # null = مهارت مستقل (بدون هدف)
     notes = Column(Text, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    
+
+    # فیلدهای جدید برای قابلیت‌های حرفه‌ای
+    start_date = Column(Date, nullable=True)  # تاریخ شروع یادگیری
+    last_practiced = Column(Date, nullable=True)  # آخرین تمرین
+    level = Column(String, default="beginner")  # beginner, intermediate, advanced
+    source_url = Column(String, nullable=True)  # منبع اصلی یادگیری
+    target_hours = Column(Integer, nullable=True)  # هدف ساعتی (مثلاً 100 ساعت)
+    practiced_hours = Column(Float, default=0)  # ساعت‌های تمرین‌شده
+
     owner = relationship("User")
     goal = relationship("Goal", foreign_keys=[goal_id])
     learning_logs = relationship("LearningLog", back_populates="skill", cascade="all, delete-orphan")
@@ -414,6 +422,28 @@ class LearningLog(Base, TimestampMixin):
     resource_url = Column(Text, nullable=True)
     tags = Column(String, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    
+
     owner = relationship("User")
     skill = relationship("Skill", back_populates="learning_logs")
+
+# ==========================================
+# ۲۳. جدول گزارش‌های روزانه منتور (MentorReport) - یک بار در روز
+# ==========================================
+class MentorReport(Base, TimestampMixin):
+    __tablename__ = "mentor_reports"
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    # بازه زمانی انتخاب‌شده توسط کاربر (last_3_days, last_1_week, ...)
+    time_frame = Column(String, nullable=False, default="last_1_week")
+    # متن ۲ پاراگرافی خلاصه (برای نمایش در کارت)
+    short_report = Column(Text, nullable=False)
+    # متن کامل گزارش (برای modal نمایش بیشتر)
+    full_report = Column(Text, nullable=False)
+    # کانتکست آماری (JSON) - برای نمایش در کارت‌ها
+    context_summary = Column(Text, nullable=True)
+    # اهداف رهاشده
+    neglected_goals = Column(Text, nullable=True)
+    # تاریخ تولید (date نه datetime، برای unique constraint)
+    report_date = Column(Date, nullable=False, index=True)
+
+    owner = relationship("User")

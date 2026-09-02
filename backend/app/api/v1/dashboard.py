@@ -149,13 +149,36 @@ async def get_overview(
                 "excitement_rating": selected_idea.excitement_rating
             }
 
-    # ۵. آمار ۷ روز گذشته با تقویم فارسی از شنبه
+    # ۵. آمار ۷ روز هفته جاری (شنبه تا جمعه) با تقویم فارسی
     weekly_activity = []
-    for i in range(6, -1, -1):
-        day_date = today - timedelta(days=i)
+    # ابتدا شنبه همین هفته رو پیدا کن
+    # weekday(): 0=Mon..6=Sun. شنبه = 5
+    days_since_saturday = (today.weekday() - 5) % 7
+    saturday = today - timedelta(days=days_since_saturday)
+    for i in range(7):
+        day_date = saturday + timedelta(days=i)
         day_str = day_date.isoformat()
-        
-        completed_on_day = sum(1 for t in all_tasks if str(t.last_action_date) == day_str or (t.is_completed and str(t.due_date) == day_str))
+
+        # تعریف واحد "تکمیل‌شده در روز X" (مثل completed_on_day):
+        #   - تسک تکمیل‌شده (is_completed) و due_date == day_str
+        #   - یا last_action_date == day_str
+        def _is_completed_on_day(t):
+            if not t:
+                return False
+            if t.is_completed and str(t.due_date) == day_str:
+                return True
+            if str(t.last_action_date) == day_str:
+                return True
+            return False
+
+        # تفکیک دقیق: ثابت (fixed) و دوره‌ای (recurring) برای آن روز
+        is_fixed = lambda t: (t.recurrence_type in (None, '', 'none'))
+        is_recurring = lambda t: (t.recurrence_type and t.recurrence_type != 'none')
+
+        fixed_count = sum(1 for t in all_tasks if is_fixed(t) and _is_completed_on_day(t))
+        recurring_count = sum(1 for t in all_tasks if is_recurring(t) and _is_completed_on_day(t))
+
+        completed_on_day = fixed_count + recurring_count
         created_on_day = sum(1 for t in all_tasks if str(t.register_date) == day_str or str(t.created_at)[:10] == day_str)
 
         day_name = get_persian_day_name(day_date)
@@ -163,7 +186,9 @@ async def get_overview(
             "date": day_str,
             "day_name": day_name,
             "completed": completed_on_day,
-            "created": created_on_day
+            "created": created_on_day,
+            "fixed_completed": fixed_count,
+            "recurring_completed": recurring_count,
         })
 
     return {
@@ -173,8 +198,10 @@ async def get_overview(
             "overdue_count": len(overdue_tasks),
             "total_tasks_count": len(all_tasks),
             "fixed_tasks_count": fixed_tasks_count,
+            "fixed_completed_count": fixed_completed_count,
             "fixed_completion_rate": fixed_rate,
             "recurring_tasks_count": recurring_tasks_count,
+            "recurring_completed_count": recurring_completed_count,
             "recurring_completion_rate": recurring_rate,
             "total_balance": total_balance,
             "total_ideas_count": len(ideas),

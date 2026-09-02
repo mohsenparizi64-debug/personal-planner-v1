@@ -1,60 +1,15 @@
 <script setup>
-<<<<<<< HEAD
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-=======
 import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { 
-  Mail, Lock, User, Phone, KeyRound, ArrowRight, RefreshCw, 
-  CheckCircle2, AlertCircle, ShieldCheck, Smartphone 
+import {
+  Mail, Lock, User, Phone, KeyRound, ArrowRight, RefreshCw,
+  CheckCircle2, AlertCircle, ShieldCheck, Smartphone
 } from 'lucide-vue-next'
->>>>>>> main
 
 const auth = useAuthStore()
 const router = useRouter()
 
-<<<<<<< HEAD
-const fullName = ref('')
-const email = ref('')
-const phone = ref('')
-const password = ref('')
-const isLoading = ref(false)
-const errorMessage = ref('')
-
-const handleRegister = async () => {
-  try {
-    isLoading.value = true
-    errorMessage.value = ''
-    
-    if (!fullName.value.trim()) {
-      errorMessage.value = '⚠️ لطفاً نام خود را وارد کنید'
-      isLoading.value = false; return
-    }
-    if (!email.value.trim() || !email.value.includes('@')) {
-      errorMessage.value = '⚠️ لطفاً ایمیل معتبر وارد کنید'
-      isLoading.value = false; return
-    }
-    if (!phone.value.trim()) {
-      errorMessage.value = '⚠️ لطفاً شماره موبایل را وارد کنید'
-      isLoading.value = false; return
-    }
-    if (!password.value.trim() || password.value.length < 6) {
-      errorMessage.value = '⚠️ رمز عبور باید حداقل ۶ کاراکتر باشد'
-      isLoading.value = false; return
-    }
-    
-    await auth.register(email.value, password.value, fullName.value, phone.value)
-    router.push('/')
-  } catch (error) {
-    const status = error.response?.status
-    if (status === 400) errorMessage.value = '❌ این ایمیل قبلاً ثبت شده است'
-    else if (status === 422) errorMessage.value = '⚠️ لطفاً ایمیل معتبر وارد کنید'
-    else errorMessage.value = '❌ خطا در برقراری ارتباط با سرور'
-  } finally { isLoading.value = false }
-=======
 const regMethod = ref('sms')
 const currentStep = ref(1)
 
@@ -123,8 +78,8 @@ const handleSendCode = async () => {
   try {
     isLoading.value = true
     const res = await auth.sendRegistrationOTP(
-      regMethod.value, 
-      cleanTarget, 
+      regMethod.value,
+      cleanTarget,
       honeypot.value
     )
     successMessage.value = res.message || 'کد تأیید با موفقیت ارسال شد.'
@@ -161,7 +116,7 @@ const handleVerifyAndRegister = async () => {
       full_name: fullName.value.trim() || null,
       honeypot: honeypot.value
     })
-    
+
     router.push('/')
   } catch (error) {
     const detail = error.response?.data?.detail
@@ -169,63 +124,13 @@ const handleVerifyAndRegister = async () => {
   } finally {
     isLoading.value = false
   }
->>>>>>> main
 }
 </script>
 
 <template>
-<<<<<<< HEAD
-  <div class="min-h-screen bg-surface-dark flex items-center justify-center p-4">
-    <div class="w-full max-w-md">
-      <div class="text-center mb-8">
-        <div class="w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-purple-500/30">
-          <span class="text-white text-3xl font-extrabold">P</span>
-        </div>
-        <h2 class="text-3xl font-extrabold text-white">ثبت‌نام</h2>
-        <p class="text-gray-500 mt-1">حساب کاربری جدید بساز</p>
-      </div>
-
-      <div class="bg-surface-card rounded-2xl border border-white/5 p-8">
-        <form @submit.prevent="handleRegister" class="space-y-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">نام کامل *</label>
-            <input v-model="fullName" required placeholder="نام و نام خانوادگی"
-                   class="block w-full px-4 py-3 bg-surface-dark border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 text-right text-gray-200" />
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">ایمیل *</label>
-            <input v-model="email" type="email" required placeholder="you@example.com"
-                   class="block w-full px-4 py-3 bg-surface-dark border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 text-right text-gray-200" />
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">شماره موبایل *</label>
-            <input v-model="phone" type="tel" required placeholder="09123456789"
-                   class="block w-full px-4 py-3 bg-surface-dark border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 text-right text-gray-200" dir="ltr" />
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">رمز عبور *</label>
-            <input v-model="password" type="password" required placeholder="حداقل ۶ کاراکتر"
-                   class="block w-full px-4 py-3 bg-surface-dark border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 text-right text-gray-200" />
-          </div>
-
-          <div v-if="errorMessage" class="text-sm p-3 rounded-xl" :class="errorMessage.startsWith('⚠️') ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'">
-            {{ errorMessage }}
-          </div>
-
-          <button type="submit" :disabled="isLoading"
-                  class="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl transition disabled:opacity-50">
-            {{ isLoading ? 'در حال ثبت‌نام...' : 'ثبت‌نام' }}
-          </button>
-        </form>
-
-        <p class="text-center text-sm text-gray-500 mt-6">
-          حساب کاربری داری؟ <router-link to="/login" class="text-purple-400 hover:text-purple-300 font-medium transition">وارد شو</router-link>
-        </p>
-      </div>
-=======
   <div class="min-h-[100dvh] w-full bg-slate-950 flex items-center justify-center p-4 text-right" dir="rtl">
     <div class="w-full max-w-md mx-auto">
-      
+
       <div class="text-center mb-6">
         <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-2xl shadow-purple-500/30">
           <span class="text-white text-3xl font-black">P</span>
@@ -235,22 +140,21 @@ const handleVerifyAndRegister = async () => {
       </div>
 
       <div class="glass-card rounded-3xl border border-white/10 p-6 md:p-8 shadow-2xl bg-slate-900/90 backdrop-blur-xl">
-        
-        <!-- انتخاب روش ثبت‌نام -->
+
         <div v-if="currentStep === 1" class="flex gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/10 mb-6">
-          <button 
-            type="button" 
-            @click="regMethod = 'sms'; targetValue = ''; errorMessage = ''" 
+          <button
+            type="button"
+            @click="regMethod = 'sms'; targetValue = ''; errorMessage = ''"
             class="flex-1 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5"
             :class="regMethod === 'sms' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'"
           >
             <Smartphone class="w-4 h-4" />
             <span>ثبت‌نام با پیامک</span>
           </button>
-          
-          <button 
-            type="button" 
-            @click="regMethod = 'email'; targetValue = ''; errorMessage = ''" 
+
+          <button
+            type="button"
+            @click="regMethod = 'email'; targetValue = ''; errorMessage = ''"
             class="flex-1 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5"
             :class="regMethod === 'email' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'"
           >
@@ -259,7 +163,6 @@ const handleVerifyAndRegister = async () => {
           </button>
         </div>
 
-        <!-- استپ ۱: دریافت اطلاعات و ارسال کد -->
         <form v-if="currentStep === 1" @submit.prevent="handleSendCode" class="space-y-4">
           <input v-model="honeypot" type="text" tabindex="-1" autocomplete="off" class="opacity-0 absolute -z-50 h-0 w-0 pointer-events-none" />
 
@@ -267,9 +170,9 @@ const handleVerifyAndRegister = async () => {
             <label class="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
               <User class="w-4 h-4 text-purple-400" /> نام و نام خانوادگی
             </label>
-            <input 
+            <input
               v-model="fullName"
-              type="text" 
+              type="text"
               placeholder="مثلاً: علی رضایی"
               class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-base font-bold outline-none focus:ring-2 focus:ring-purple-500 transition"
             />
@@ -279,9 +182,9 @@ const handleVerifyAndRegister = async () => {
             <label class="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
               <Phone class="w-4 h-4 text-emerald-400" /> شماره موبایل *
             </label>
-            <input 
+            <input
               v-model="targetValue"
-              type="tel" 
+              type="tel"
               required
               autocapitalize="none"
               autocorrect="off"
@@ -295,9 +198,9 @@ const handleVerifyAndRegister = async () => {
             <label class="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
               <Mail class="w-4 h-4 text-blue-400" /> آدرس ایمیل *
             </label>
-            <input 
+            <input
               v-model="targetValue"
-              type="email" 
+              type="email"
               required
               autocapitalize="none"
               autocorrect="off"
@@ -310,9 +213,9 @@ const handleVerifyAndRegister = async () => {
             <label class="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
               <Lock class="w-4 h-4 text-amber-400" /> کلمه عبور *
             </label>
-            <input 
+            <input
               v-model="password"
-              type="password" 
+              type="password"
               required
               autocapitalize="none"
               autocorrect="off"
@@ -326,8 +229,8 @@ const handleVerifyAndRegister = async () => {
             <span>{{ errorMessage }}</span>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             :disabled="isLoading"
             class="w-full py-3.5 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black rounded-xl shadow-lg transition duration-200 disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
           >
@@ -337,14 +240,13 @@ const handleVerifyAndRegister = async () => {
           </button>
         </form>
 
-        <!-- استپ ۲: ورود کد OTP -->
         <form v-else @submit.prevent="handleVerifyAndRegister" class="space-y-4">
           <div class="text-center bg-white/5 p-4 rounded-2xl border border-white/10 mb-4">
             <p class="text-xs text-gray-300">کد تأیید به {{ regMethod === 'sms' ? 'شماره' : 'ایمیل' }} زیر ارسال شد:</p>
             <p class="text-sm font-black text-purple-400 dir-ltr mt-1">{{ targetValue }}</p>
-            <button 
-              type="button" 
-              @click="currentStep = 1; errorMessage = ''; successMessage = ''" 
+            <button
+              type="button"
+              @click="currentStep = 1; errorMessage = ''; successMessage = ''"
               class="text-[11px] text-gray-400 hover:text-white underline mt-2 inline-flex items-center gap-1"
             >
               <ArrowRight class="w-3 h-3" /> تغییر {{ regMethod === 'sms' ? 'شماره' : 'ایمیل' }}
@@ -355,9 +257,9 @@ const handleVerifyAndRegister = async () => {
             <label class="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
               <KeyRound class="w-4 h-4 text-emerald-400" /> کد تأیید ۶ رقمی *
             </label>
-            <input 
+            <input
               v-model="otpCode"
-              type="text" 
+              type="text"
               required
               maxlength="6"
               autofocus
@@ -376,8 +278,8 @@ const handleVerifyAndRegister = async () => {
             <span>{{ errorMessage }}</span>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             :disabled="isLoading"
             class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl shadow-lg transition duration-200 disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
           >
@@ -387,9 +289,9 @@ const handleVerifyAndRegister = async () => {
           </button>
 
           <div class="text-center pt-2">
-            <button 
-              type="button" 
-              @click="handleSendCode" 
+            <button
+              type="button"
+              @click="handleSendCode"
               :disabled="countdown > 0 || isLoading"
               class="text-xs font-bold text-purple-400 hover:text-purple-300 disabled:text-gray-500 transition inline-flex items-center gap-1.5"
             >
@@ -407,7 +309,6 @@ const handleVerifyAndRegister = async () => {
 
       </div>
 
->>>>>>> main
     </div>
   </div>
 </template>
