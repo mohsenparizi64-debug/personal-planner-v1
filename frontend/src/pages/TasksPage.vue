@@ -43,6 +43,7 @@ const filterCategory = ref('')
 const filterStatus = ref('')
 const filterPriority = ref(null)
 const filterGoalId = ref(null)
+const filterSubGoalId = ref(null)  // فیلتر گام - وابسته به goal انتخاب‌شده
 const filterRecurrence = ref('')
 const filterDueDateFrom = ref('')
 const filterDueDateTo = ref('')
@@ -225,6 +226,7 @@ const filteredTasks = computed(() => {
   if (filterStatus.value) result = result.filter(t => t.status === filterStatus.value)
   if (filterPriority.value !== null && filterPriority.value !== '') result = result.filter(t => t.priority === Number(filterPriority.value))
   if (filterGoalId.value) result = result.filter(t => t.goal_id === filterGoalId.value)
+  if (filterSubGoalId.value) result = result.filter(t => t.sub_goal_id === filterSubGoalId.value)
   if (filterRecurrence.value === 'has') result = result.filter(t => isTaskRecurring(t))
   if (filterRecurrence.value === 'none') result = result.filter(t => !isTaskRecurring(t))
   if (filterDueDateFrom.value) result = result.filter(t => t.due_date && t.due_date >= filterDueDateFrom.value)
@@ -240,6 +242,7 @@ const activeFilterCount = computed(() => {
   if (filterStatus.value) c++
   if (filterPriority.value !== null && filterPriority.value !== '') c++
   if (filterGoalId.value) c++
+  if (filterSubGoalId.value) c++
   if (filterRecurrence.value) c++
   if (filterDueDateFrom.value || filterDueDateTo.value) c++
   return c
@@ -247,9 +250,18 @@ const activeFilterCount = computed(() => {
 
 const resetFilters = () => {
   filterSearch.value = ''; filterCategory.value = ''; filterStatus.value = ''
-  filterPriority.value = null; filterGoalId.value = null; filterRecurrence.value = ''
+  filterPriority.value = null; filterGoalId.value = null; filterSubGoalId.value = null; filterRecurrence.value = ''
   filterDueDateFrom.value = ''; filterDueDateTo.value = ''; quickTab.value = 'all'
+  // وقتی goal ریست می‌شه، لیست sub_goal ها هم پاک شه
+  if (filterGoalId.value === null) subGoals.value = []
 }
+
+// وقتی goal عوض می‌شه، sub_goal های مربوطه fetch شن + فیلتر sub_goal ریست شه
+watch(filterGoalId, (newGoalId) => {
+  filterSubGoalId.value = null
+  if (newGoalId) fetchSubGoals(newGoalId)
+  else subGoals.value = []
+})
 
 const openNewForm = () => {
   form.value = { 
@@ -372,6 +384,20 @@ onMounted(async () => {
     applyTabFilter(route.query.tab)
   }
   await Promise.all([fetchTasks(), fetchGoals(), fetchCategories()])
+
+  // 🔗 لینک از Roadmap یا Goals: خواندن ?goal=X و ?sub=Y از URL
+  if (route.query.goal) {
+    const gId = Number(route.query.goal)
+    if (!isNaN(gId) && goals.value.find(g => g.id === gId)) {
+      filterGoalId.value = gId
+      await fetchSubGoals(gId)  // sub_goal ها رو fetch کن
+      // حالا sub_goal فیلتر رو هم تنظیم کن (اگه پارامتر sub=Y وجود داشت)
+      if (route.query.sub) {
+        const sId = Number(route.query.sub)
+        if (!isNaN(sId)) filterSubGoalId.value = sId
+      }
+    }
+  }
 })
 </script>
 
@@ -445,11 +471,17 @@ onMounted(async () => {
         <input v-model="filterSearch" placeholder="جستجو در عنوان و توضیحات تسک‌ها..." class="w-full pr-10 pl-4 py-2.5 rounded-xl text-xs md:text-sm font-bold bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
       </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
         <select v-model="filterCategory" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option value="">همه دسته‌بندی‌ها</option><option v-for="c in categories" :key="c.value || c" :value="c.value || c">{{ c.label || c }}</option></select>
         <select v-model="filterStatus" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option value="">همه وضعیت‌ها</option><option v-for="(l,k) in statusLabels" :key="k" :value="k">{{ l }}</option></select>
         <select v-model="filterPriority" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option :value="null">همه اولویت‌ها</option><option :value="0">عادی</option><option :value="1">مهم</option><option :value="2">اضطراری</option></select>
-        <select v-model="filterGoalId" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option :value="null">همه اهداف</option><option v-for="g in goals" :key="g.id" :value="g.id">{{ g.title }}</option></select>
+        <select v-model="filterGoalId" @change="filterSubGoalId = null; if (filterGoalId) fetchSubGoals(filterGoalId); else subGoals = []"
+                class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none"><option :value="null">همه اهداف</option><option v-for="g in goals" :key="g.id" :value="g.id">{{ g.title }}</option></select>
+        <select v-model="filterSubGoalId" :disabled="!filterGoalId || subGoals.length === 0"
+                class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none disabled:opacity-40 disabled:cursor-not-allowed">
+          <option :value="null">{{ filterGoalId ? (subGoals.length ? 'همه گام‌ها' : 'گامی ندارد') : 'ابتدا هدف انتخاب کنید' }}</option>
+          <option v-for="sg in subGoals" :key="sg.id" :value="sg.id">{{ sg.title }}</option>
+        </select>
       </div>
 
       <!-- فیلترهای بازه تاریخ و تکرار -->

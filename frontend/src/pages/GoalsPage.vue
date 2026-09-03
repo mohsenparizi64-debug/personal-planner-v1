@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock, ArrowRight, Eye, Sparkles } from 'lucide-vue-next'
+import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock, ArrowRight, Eye, Sparkles, ListTodo } from 'lucide-vue-next'
 import api from '@/services/api'
 import DateInputPersian from '@/components/DateInputPersian.vue'
 import { formatDate } from '@/utils/date'
@@ -9,6 +9,7 @@ import { useRouter } from 'vue-router'
 
 const themeStore = useThemeStore()
 const goals = ref([])
+const allTasks = ref([])  // همه تسک‌ها (برای progress واقعی)
 const recentLogs = ref([])
 const showForm = ref(false)
 const showLogs = ref(false)
@@ -21,6 +22,11 @@ const router = useRouter()
 const goToRoadmap = (goalId) => {
   sessionStorage.setItem('active_goal_id', goalId)
   router.push('/roadmap')
+}
+
+// لینک سریع به تسک‌های یک هدف (با فیلتر خودکار)
+const goToTasks = (goalId) => {
+  router.push({ path: '/tasks', query: { goal: goalId } })
 }
 
 // انتخاب هدف برای حالت تمرکز (Spotlight Focus)
@@ -59,6 +65,31 @@ const fetchGoals = async () => {
   } catch (error) {
     console.error('خطا در گرفتن اهداف', error)
   }
+}
+
+const fetchAllTasks = async () => {
+  try {
+    const response = await api.get('/tasks')
+    allTasks.value = response.data
+  } catch (error) {
+    console.error('خطا در گرفتن تسک‌ها', error)
+  }
+}
+
+// 📊 محاسبه progress واقعی از تسک‌ها (نه فیلد progress_percent که دستیه)
+const progressByGoal = (goalId) => {
+  const goalTasks = allTasks.value.filter(t => t.goal_id === goalId)
+  if (goalTasks.length === 0) return 0
+  const completed = goalTasks.filter(t => t.is_completed).length
+  return Math.round((completed / goalTasks.length) * 100)
+}
+
+const tasksCountByGoal = (goalId) => {
+  return allTasks.value.filter(t => t.goal_id === goalId).length
+}
+
+const completedTasksByGoal = (goalId) => {
+  return allTasks.value.filter(t => t.goal_id === goalId && t.is_completed).length
 }
 
 const fetchLogs = async () => {
@@ -193,13 +224,14 @@ const messageType = ref('success')
 
 onMounted(() => {
   fetchGoals()
+  fetchAllTasks()  // برای progress واقعی
   fetchLogs()
 })
 </script>
 
 <template>
   <div 
-    class="p-6 md:p-10 max-w-7xl mx-auto relative z-10 min-h-screen text-right" dir="rtl"
+    class="p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto relative z-10 min-h-screen text-right" dir="rtl"
     :class="themeStore.currentTheme === 'persian-classic' ? 'page-bg-tasks' : themeStore.currentTheme === 'cyber-digital' ? 'page-bg-tasks' : ''"
   >
     <!-- الگوی اسلیمی -->
@@ -455,14 +487,31 @@ onMounted(() => {
             <span>تمرکز و کامل</span>
           </button>
 
-          <button @click="goToRoadmap(goal.id)" 
+          <button @click="goToRoadmap(goal.id)"
                   class="px-3.5 py-1.5 rounded-xl font-bold text-xs text-white transition flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600">
             <span>نقشه راه</span>
             <span>➔</span>
           </button>
+
+          <!-- دکمه سریع به تسک‌های این هدف -->
+          <button @click="goToTasks(goal.id)"
+                  class="px-3 py-1.5 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1.5">
+            <ListTodo class="w-3.5 h-3.5 text-emerald-400" />
+            <span>{{ completedTasksByGoal(goal.id) }}/{{ tasksCountByGoal(goal.id) }} تسک</span>
+          </button>
         </div>
 
-      </div>
+        <!-- Progress واقعی از تسک‌ها -->
+        <div class="mt-3 pt-3 border-t border-white/5">
+          <div class="flex items-center justify-between text-[10px] mb-1.5">
+            <span class="opacity-70 font-bold">پیشرفت واقعی (محاسبه از تسک‌ها)</span>
+            <span class="font-black text-amber-300">{{ progressByGoal(goal.id) }}%</span>
+          </div>
+          <div class="h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all"
+                 :style="{ width: progressByGoal(goal.id) + '%' }"></div>
+          </div>
+        </div>      </div>
     </div>
 
     <!-- 🌟 حالت تمرکز هوشمند و سه‌بعدی روی هدف انتخابی (Spotlight Focus Mode) -->

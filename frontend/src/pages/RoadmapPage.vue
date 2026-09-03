@@ -74,7 +74,8 @@ const fetchSubGoals = async () => {
     const res = await api.get(`/roadmap/goal/${selectedGoalId.value}/subgoals`)
     subGoals.value = res.data.map(sg => ({
       ...sg,
-      tasks: sg.tasks || sg.sub_goal_tasks || sg.linked_tasks || []
+      // ساده‌سازی: backend الان tasks رو مستقیم می‌فرسته
+      tasks: sg.tasks || []
     }))
     res.data.forEach(sg => { if (expandedSubGoals.value[sg.id] === undefined) expandedSubGoals.value[sg.id] = true })
     
@@ -150,9 +151,8 @@ const closeSubGoalFocus = () => {
 }
 
 const goToTasks = (subGoalId, goalId) => {
-  sessionStorage.setItem('active_goal_id', goalId)
-  sessionStorage.setItem('active_sub_goal_id', subGoalId)
-  router.push('/tasks')
+  // لینک با query params تا TasksPage خودکار فیلتر کنه
+  router.push({ path: '/tasks', query: { goal: goalId, sub: subGoalId } })
 }
 
 const isMainTask = (task) => task.source === 'main_task'
@@ -234,7 +234,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 md:p-10 max-w-7xl mx-auto relative min-h-screen text-right" dir="rtl">
+  <div class="p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto relative min-h-screen text-right" dir="rtl">
     
     <!-- Toast -->
     <div v-if="message" class="fixed top-24 left-1/2 transform -translate-x-1/2 z-[500] px-6 py-3 rounded-xl shadow-2xl text-white font-semibold transition-all" :style="{ background: messageType === 'error' ? '#ef4444' : 'var(--accent)' }">{{ message }}</div>
