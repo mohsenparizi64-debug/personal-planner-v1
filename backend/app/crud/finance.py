@@ -1,9 +1,31 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from app.models.all_models import Account, Transaction
 from app.schemas.finance import AccountCreate, AccountUpdate, TransactionCreate
-from datetime import date
+from datetime import date, datetime, timedelta
+from collections import OrderedDict
+
+# --- نگاشت نام روز هفته میلادی به فارسی (شنبه = 0) ---
+_WEEKDAY_FROM_SAT = {
+    5: "شنبه",   # Sat
+    6: "یکشنبه", # Sun
+    0: "دوشنبه", # Mon
+    1: "سه‌شنبه", # Tue
+    2: "چهارشنبه", # Wed
+    3: "پنج‌شنبه", # Thu
+    4: "جمعه",   # Fri
+}
+
+def _parse_transaction_date(raw):
+    """تبدیل transaction_date (رشته YYYY-MM-DD) به datetime؛ None در صورت نامعتبر"""
+    if not raw:
+        return None
+    try:
+        s = str(raw)[:10]
+        return datetime.strptime(s, '%Y-%m-%d')
+    except Exception:
+        return None
 
 # --- بخش حساب‌ها ---
 async def get_accounts(db: AsyncSession, owner_id: int):
@@ -115,3 +137,96 @@ async def update_transaction(db: AsyncSession, trans_id: int, owner_id: int, tra
     if account: account.current_balance += delta
     await db.commit(); await db.refresh(db_trans)
     return db_trans
+
+
+# ====== گزارش چند-بازه‌ای برای صفحه مالی ======
+async def get_recent_finance_report(db: AsyncSession, owner_id: int, days: int = 7):
+    """
+    گزارش تراکنش‌های بازه اخیر.
+    days فقط 7/30/90 — در غیر این صورت 7.
+    خروجی: summary + daily_buckets + category_breakdown
+    """
+    if days not in (7, 30, 90):
+        days = 7
+
+    today = datetime.utcnow().date()
+    # برای هماهنگی با داشبورد: هفته شمسی از شنبه شروع می‌شه
+    # weekday: Mon=0..Sun=6؛ شنبه در شمسی = روز 5 (Sat) میلادی
+    # اگه today = چهارشنبه (Wed, weekday=2)، فاصله تا شنبه = (2 - 5) % 7 = 4 روز به عقب
+    # اما اگه امروز شنبه (Sat=5)، فاصله = 0
+    days_since_saturday = (today.weekday() - 5) % 7
+    start_date = today - timedelta(days=days_since_saturday)
+
+    res = await db.execute(
+        select(Transaction).where(
+            Transaction.owner_id == owner_id
+        ).order_by(Transaction.id.asc())
+    )
+    all_tx = res.scalars().all()
+
+    deposit_total = 0.0
+    withdraw_total = 0.0
+    daily_buckets = OrderedDict()
+    cat_buckets = {}  # فقط برداشت برای donut
+
+    for i in range(days):
+        d = start_date + timedelta(days=i)
+        daily_buckets[d.isoformat()] = {
+            "date": d.isoformat(),
+            "weekday": _WEEKDAY_FROM_SAT.get(d.weekday(), ""),
+            "deposit": 0.0,
+            "withdraw": 0.0,
+        }
+
+    tx_count = 0
+    for t in all_tx:
+        dt = _parse_transaction_date(getattr(t, "transaction_date", None))
+        if not dt:
+            continue
+        d_iso = dt.date().isoformat()
+        if d_iso not in daily_buckets:
+            continue
+        tx_count += 1
+        amount = float(t.amount or 0)
+        ttype = t.transaction_type
+        if ttype == "deposit":
+            daily_buckets[d_iso]["deposit"] += amount
+            deposit_total += amount
+        elif ttype == "withdrawal":
+            daily_buckets[d_iso]["withdraw"] += amount
+            withdraw_total += amount
+            cat = (t.category or "other_out")
+            cat_buckets[cat] = cat_buckets.get(cat, 0.0) + amount
+
+    balance_net = deposit_total - withdraw_total
+
+    # پرهزینه‌ترین دسته
+    top_category = None
+    if cat_buckets:
+        top_cat_id = max(cat_buckets, key=cat_buckets.get)
+        top_category = {"id": top_cat_id, "amount": cat_buckets[top_cat_id]}
+
+    # breakdown با درصد
+    category_breakdown = []
+    for cat_id, amt in sorted(cat_buckets.items(), key=lambda x: -x[1]):
+        pct = (amt / withdraw_total * 100) if withdraw_total > 0 else 0.0
+        category_breakdown.append({
+            "id": cat_id,
+            "amount": amt,
+            "percent": round(pct, 1),
+        })
+
+    return {
+        "days": days,
+        "range_start": start_date.isoformat(),
+        "range_end": today.isoformat(),
+        "summary": {
+            "deposit_total": deposit_total,
+            "withdraw_total": withdraw_total,
+            "balance_net": balance_net,
+            "top_category": top_category,
+            "transaction_count": tx_count,
+        },
+        "daily_buckets": list(daily_buckets.values()),
+        "category_breakdown": category_breakdown,
+    }

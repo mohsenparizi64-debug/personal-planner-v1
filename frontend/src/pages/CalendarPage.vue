@@ -1,12 +1,14 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { 
-  ChevronRight, ChevronLeft, Calendar as CalendarIcon, 
-  Clock, AlertTriangle, Check, Upload, Image as ImageIcon, 
-  Volume2, VolumeX, RotateCcw, Sparkles, X 
+import {
+  ChevronRight, ChevronLeft, Calendar as CalendarIcon,
+  Clock, AlertTriangle, Check, ArrowRightLeft, Sun, Globe
 } from 'lucide-vue-next'
 import api from '@/services/api'
+import DateInputPersian from '@/components/DateInputPersian.vue'
+import WheelDatePicker from '@/components/WheelDatePicker.vue'
+import { toGregorianISO, toShamsiDisplay, isGregorianISO } from '@/utils/date'
 
 const themeStore = useThemeStore()
 
@@ -88,7 +90,7 @@ const seasonBgs = {
   winter: 'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?auto=format&fit=crop&w=1920&q=80'  // برف کوهستان
 }
 
-// تشخیص هوشمند فصل جاری بر اساس ماه
+// تشخیص هوشمند فصل جاری بر اساس ماه (فقط برای رنگ‌بندی تقویم)
 const currentSeason = computed(() => {
   const m = currentMonth.value
   if (m >= 1 && m <= 3) return 'spring'
@@ -97,144 +99,86 @@ const currentSeason = computed(() => {
   return 'winter'
 })
 
-// تصویر پس‌زمینه فعلی (عکس شخصی یا عکس پیش‌فرض فصل)
-const activeBgUrl = computed(() => {
-  if (customBgUrl.value) return customBgUrl.value
-  return seasonBgs[currentSeason.value]
-})
+// ====== حالت تقویم: شمسی یا میلادی ======
+const calendarMode = ref('shamsi') // 'shamsi' | 'gregorian'
 
-// سیستم صدای زنده طبیعت
-const isAudioPlaying = ref(false)
-let ambientAudio = null
+// ====== ابزار تبدیل تاریخ (بالای صفحه) ======
+const convertSource = ref('')          // ISO میلادی (از WheelDatePicker)
+const convertDirection = ref('sh2g')   // 'sh2g' (شمسی→میلادی) یا 'g2sh' (میلادی→شمسی)
+const convertResult = ref('')
 
-const toggleAudio = () => {
-  if (!ambientAudio) {
-    // لینک صدا طبیعت واقعی
-    ambientAudio = new Audio('https://cdn.pixabay.com/download/audio/2022/05/16/audio_db6591201e.mp3?filename=birds-in-forest-20770.mp3')
-    ambientAudio.loop = true
-    ambientAudio.volume = 0.4
+// WheelDatePicker مستقیماً ISO میلادی می‌فرسته
+function onConvertSourceChange(isoValue) {
+  convertSource.value = isoValue || ''
+  performConvert()
+}
+
+function performConvert() {
+  if (!convertSource.value.trim()) {
+    convertResult.value = ''
+    return
   }
-  if (isAudioPlaying.value) {
-    ambientAudio.pause()
-    isAudioPlaying.value = false
+  if (convertDirection.value === 'sh2g') {
+    // ISO میلادی → نمایش میلادی
+    if (isGregorianISO(convertSource.value.trim())) {
+      convertResult.value = convertSource.value.trim()
+    } else {
+      convertResult.value = 'تاریخ نامعتبر'
+    }
   } else {
-    ambientAudio.play().catch(() => {})
-    isAudioPlaying.value = true
+    // ISO میلادی → شمسی
+    if (isGregorianISO(convertSource.value.trim())) {
+      const s = toShamsiDisplay(convertSource.value.trim())
+      convertResult.value = s || 'تاریخ نامعتبر'
+    } else {
+      convertResult.value = 'تاریخ نامعتبر'
+    }
   }
 }
 
-// آپلود عکس اختصاصی از کامپیوتر کاربر
-const handleImageUpload = (e) => {
-  const file = e.target.files[0]
-  uploadError.value = ''
-  if (!file) return
-
-  // چک کردن حجم (حداکثر ۵ مگابایت)
-  if (file.size > 5 * 1024 * 1024) {
-    uploadError.value = 'حجم عکس نباید بیشتر از ۵ مگابایت باشد.'
-    return
-  }
-
-  // چک کردن فرمت
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    uploadError.value = 'فرمت فایل باید JPG، PNG یا WEBP باشد.'
-    return
-  }
-
-  const reader = new FileReader()
-  reader.onload = (event) => {
-    const result = event.target.result
-    customBgUrl.value = result
-    localStorage.setItem('planner_calendar_custom_bg', result)
-    showUploadModal.value = false
-  }
-  reader.readAsDataURL(file)
+function swapConvertDirection() {
+  convertDirection.value = convertDirection.value === 'sh2g' ? 'g2sh' : 'sh2g'
+  convertSource.value = ''
+  convertResult.value = ''
 }
 
-const resetDefaultBg = () => {
-  customBgUrl.value = ''
-  localStorage.removeItem('planner_calendar_custom_bg')
+// ====== «برو به تاریخ» ======
+const gotoDateValue = ref('')           // ISO میلادی (از WheelDatePicker مستقیم میاد)
+const gotoDateType = ref('shamsi')      // نوع نمایش wheel picker
+
+// WheelDatePicker مستقیماً ISO میلادی برمی‌گردونه
+function handleGotoDateInput(isoValue) {
+  gotoDateValue.value = isoValue || ''
 }
 
-// انیمیشن زنده باران و برف رو بوم (Canvas Engine)
-let canvasAnimId = null
-
-const initCanvasWeather = () => {
-  const canvas = document.getElementById('weatherCanvas')
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-
-  let width = canvas.width = window.innerWidth
-  let height = canvas.height = window.innerHeight
-
-  const handleResize = () => {
-    width = canvas.width = window.innerWidth
-    height = canvas.height = window.innerHeight
+function performGoto() {
+  if (!gotoDateValue.value) return
+  if (calendarMode.value === 'shamsi') {
+    const [gy, gm, gd] = gotoDateValue.value.split('-').map(Number)
+    const [jy, jm, jd] = g2j(gy, gm, gd)
+    currentYear.value = jy
+    currentMonth.value = jm
+    selectedDayNum.value = jd
+  } else {
+    const [gy, gm, gd] = gotoDateValue.value.split('-').map(Number)
+    currentYear.value = gy
+    currentMonth.value = gm
+    selectedDayNum.value = gd
   }
-  window.addEventListener('resize', handleResize)
+}
 
-  // ساخت ذرات متناسب با فصل
-  const particles = []
-  const particleCount = currentSeason.value === 'spring' || currentSeason.value === 'winter' ? 70 : 40
-
-  for (let i = 0; i < particleCount; i++) {
-    particles.push({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      length: Math.random() * 20 + 10,
-      speedY: Math.random() * 3 + 2,
-      speedX: Math.random() * 1 - 0.5,
-      size: Math.random() * 3 + 1,
-      opacity: Math.random() * 0.5 + 0.2
-    })
-  }
-
-  const render = () => {
-    ctx.clearRect(0, 0, width, height)
-
-    particles.forEach(p => {
-      ctx.beginPath()
-      if (currentSeason.value === 'spring') {
-        // باران بهاری
-        ctx.strokeStyle = `rgba(180, 220, 255, ${p.opacity})`
-        ctx.lineWidth = 1.5
-        ctx.moveTo(p.x, p.y)
-        ctx.lineTo(p.x + p.speedX * 2, p.y + p.length)
-        ctx.stroke()
-      } else if (currentSeason.value === 'winter') {
-        // برف زمستانی
-        ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity})`
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx.fill()
-      } else if (currentSeason.value === 'autumn') {
-        // برگ پاییزی
-        ctx.fillStyle = `rgba(245, 158, 11, ${p.opacity})`
-        ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2)
-        ctx.fill()
-      } else {
-        // ذرات طلایی تابستان
-        ctx.fillStyle = `rgba(253, 224, 71, ${p.opacity})`
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      p.y += p.speedY
-      p.x += p.speedX
-
-      if (p.y > height) {
-        p.y = -10
-        p.x = Math.random() * width
-      }
-    })
-
-    canvasAnimId = requestAnimationFrame(render)
-  }
-
-  render()
+function swapGotoType() {
+  gotoDateType.value = gotoDateType.value === 'shamsi' ? 'gregorian' : 'shamsi'
+  gotoDateValue.value = ''
 }
 
 // محاسبات شبکه تقویم و تسک‌ها
 const daysInCurrentMonth = computed(() => {
+  if (calendarMode.value === 'gregorian') {
+    // میلادی
+    return new Date(currentYear.value, currentMonth.value, 0).getDate()
+  }
+  // شمسی
   const m = currentMonth.value
   if (m <= 6) return 31
   if (m <= 11) return 30
@@ -242,6 +186,12 @@ const daysInCurrentMonth = computed(() => {
 })
 
 const startPaddingDays = computed(() => {
+  if (calendarMode.value === 'gregorian') {
+    // میلادی: getDay() → 0=Sun, 6=Sat. شنبه = 6
+    const firstDay = new Date(currentYear.value, currentMonth.value - 1, 1).getDay()
+    return (firstDay + 1) % 7
+  }
+  // شمسی: اولین روز ماه شمسی برابر چندمین روز هفته میلادی است
   const [gy, gm, gd] = j2g(currentYear.value, currentMonth.value, 1)
   const gDate = new Date(gy, gm - 1, gd)
   return (gDate.getDay() + 1) % 7
@@ -252,14 +202,28 @@ const monthDaysGrid = computed(() => {
   for (let i = 0; i < startPaddingDays.value; i++) grid.push({ isPadding: true })
 
   for (let d = 1; d <= daysInCurrentMonth.value; d++) {
-    const [gy, gm, gd] = j2g(currentYear.value, currentMonth.value, d)
-    const shamsiSlash = `${currentYear.value}/${String(currentMonth.value).padStart(2, '0')}/${String(d).padStart(2, '0')}`
-    const shamsiDash = `${currentYear.value}-${String(currentMonth.value).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    const gregISO = `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`
-    const isToday = (currentYear.value === realJY && currentMonth.value === realJM && d === realJD)
+    let shamsiSlash, shamsiDash, gregISO, isToday, gregDay, gregMonthName
+    if (calendarMode.value === 'gregorian') {
+      // حالت میلادی
+      shamsiSlash = ''
+      shamsiDash = ''
+      gregISO = `${currentYear.value}-${String(currentMonth.value).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      gregDay = d
+      gregMonthName = englishMonths[currentMonth.value - 1]
+      isToday = (currentYear.value === realNow.getFullYear() && currentMonth.value === (realNow.getMonth() + 1) && d === realNow.getDate())
+    } else {
+      // حالت شمسی
+      const [gy, gm, gd] = j2g(currentYear.value, currentMonth.value, d)
+      shamsiSlash = `${currentYear.value}/${String(currentMonth.value).padStart(2, '0')}/${String(d).padStart(2, '0')}`
+      shamsiDash = `${currentYear.value}-${String(currentMonth.value).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      gregISO = `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`
+      gregDay = gd
+      gregMonthName = englishMonths[gm - 1]
+      isToday = (currentYear.value === realJY && currentMonth.value === realJM && d === realJD)
+    }
 
     grid.push({
-      isPadding: false, dayNum: d, gregDay: gd, gregMonthName: englishMonths[gm - 1],
+      isPadding: false, dayNum: d, gregDay, gregMonthName,
       shamsiSlash, shamsiDash, gregISO, isToday
     })
   }
@@ -274,7 +238,7 @@ const fetchTasks = async () => {
     const todayGreg = `${realNow.getFullYear()}-${String(realNow.getMonth() + 1).padStart(2, '0')}-${String(realNow.getDate()).padStart(2, '0')}`
     const todayShamsi = `${realJY}/${String(realJM).padStart(2, '0')}/${String(realJD).padStart(2, '0')}`
 
-    overdueTasks.value = tasks.value.filter(t => !t.is_completed && t.due_date && (t.due_date < todayGreg && t.due_date < todayShamsi))
+    overdueTasks.value = tasks.value.filter(t => !t.is_completed && t.due_date && (t.due_date < todayGreg || t.due_date < todayShamsi))
   } catch (e) {} finally { isLoading.value = false }
 }
 
@@ -282,6 +246,7 @@ const getTasksForDayObj = (cell) => {
   if (cell.isPadding) return []
   return tasks.value.filter(t => {
     const d = t.due_date || t.register_date
+    if (!d) return false
     return (d === cell.shamsiSlash || d === cell.shamsiDash || d === cell.gregISO)
   })
 }
@@ -289,9 +254,35 @@ const getTasksForDayObj = (cell) => {
 const selectedDayObj = computed(() => monthDaysGrid.value.find(c => !c.isPadding && c.dayNum === selectedDayNum.value) || {})
 const tasksForSelectedDay = computed(() => getTasksForDayObj(selectedDayObj.value))
 
-const prevMonth = () => { if (currentMonth.value === 1) { currentMonth.value = 12; currentYear.value-- } else currentMonth.value-- }
-const nextMonth = () => { if (currentMonth.value === 12) { currentMonth.value = 1; currentYear.value++ } else currentMonth.value++ }
-const goToToday = () => { currentYear.value = realJY; currentMonth.value = realJM; selectedDayNum.value = realJD }
+const prevMonth = () => {
+  if (calendarMode.value === 'gregorian') {
+    if (currentMonth.value === 1) { currentMonth.value = 12; currentYear.value-- }
+    else currentMonth.value--
+  } else {
+    if (currentMonth.value === 1) { currentMonth.value = 12; currentYear.value-- }
+    else currentMonth.value--
+  }
+}
+const nextMonth = () => {
+  if (calendarMode.value === 'gregorian') {
+    if (currentMonth.value === 12) { currentMonth.value = 1; currentYear.value++ }
+    else currentMonth.value++
+  } else {
+    if (currentMonth.value === 12) { currentMonth.value = 1; currentYear.value++ }
+    else currentMonth.value++
+  }
+}
+const goToToday = () => {
+  if (calendarMode.value === 'gregorian') {
+    currentYear.value = realNow.getFullYear()
+    currentMonth.value = realNow.getMonth() + 1
+    selectedDayNum.value = realNow.getDate()
+  } else {
+    currentYear.value = realJY
+    currentMonth.value = realJM
+    selectedDayNum.value = realJD
+  }
+}
 
 const toggleTask = async (t) => {
   try {
@@ -301,198 +292,284 @@ const toggleTask = async (t) => {
   } catch (e) {}
 }
 
-onMounted(() => {
-  fetchTasks()
-  setTimeout(initCanvasWeather, 300)
+// عنوان ماه فعلی برای هدر تقویم
+const currentMonthTitle = computed(() => {
+  if (calendarMode.value === 'gregorian') {
+    return `${englishMonths[currentMonth.value - 1]} ${currentYear.value}`
+  }
+  return `${shamsiMonths[currentMonth.value - 1]} ${currentYear.value}`
 })
 
-onUnmounted(() => {
-  if (canvasAnimId) cancelAnimationFrame(canvasAnimId)
-  if (ambientAudio) { ambientAudio.pause(); ambientAudio = null }
+onMounted(() => {
+  fetchTasks()
 })
 </script>
 <template>
-  <div class="relative min-h-screen text-right p-6 md:p-10 overflow-hidden" dir="rtl">
-    
-    <!-- ۱. لایه تصویر پس‌زمینه زنده (عکس اختصاصی یا پیش‌فرض رودخانه کوهستانی) -->
-    <div class="fixed inset-0 z-0 bg-cover bg-center transition-all duration-1000"
-         :style="{ backgroundImage: `url(${activeBgUrl})` }">
-      
-      <div class="absolute inset-0 bg-black/35"></div>
+  <div class="relative min-h-screen text-right p-3 sm:p-4 md:p-8 lg:p-10 overflow-hidden" dir="rtl">
+
+    <!-- ۱. پس‌زمینه ثابت (gradient تیره شیشه‌ای برای یکپارچگی با داشبورد) -->
+    <div class="fixed inset-0 z-0 bg-cover bg-center"
+         style="background-image: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);">
+      <div class="absolute inset-0 bg-black/30"></div>
     </div>
 
-    <!-- ۲. لایه انیمیشن زنده باران/برف (Canvas) -->
-    <canvas id="weatherCanvas" class="fixed inset-0 z-10 pointer-events-none"></canvas>
+    <!-- ۲. محتوای اصلی تقویم -->
+    <div class="relative z-20 max-w-7xl mx-auto space-y-4 sm:space-y-6">
 
-    <!-- ۳. محتوای اصلی تقویم (روی لایه شیشه‌ای) -->
-    <div class="relative z-20 max-w-7xl mx-auto space-y-8">
+      <!-- ═══════ هدر اصلی + ابزارها ═══════ -->
+      <div class="glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 text-white shadow-2xl space-y-4">
+        <!-- ردیف اول: عنوان + دکمه‌های اصلی -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl sm:text-2xl md:text-3xl font-black drop-shadow-md flex items-center gap-2">
+              <CalendarIcon class="w-6 h-6 sm:w-7 sm:h-7 text-purple-400" />
+              تقویم و برنامه‌ها
+            </h1>
+            <p class="text-[11px] sm:text-xs opacity-70 mt-0.5">
+              امروز: {{ weekDays[(new Date().getDay() + 1) % 7] }} {{ realJD }} {{ shamsiMonths[realJM - 1] }} {{ realJY }}
+              <span class="opacity-50"> | </span>
+              <span dir="ltr">{{ realNow.toISOString().split('T')[0] }}</span>
+            </p>
+          </div>
 
-      <!-- هدر اصلی -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-black/30 backdrop-blur-md border border-white/10 text-white shadow-2xl">
-        <div>
-          <h1 class="text-3xl font-black mb-1 drop-shadow-md">تقویم زنده طبیعت</h1>
-          <p class="text-xs opacity-80">
-            امروز: {{ weekDays[(new Date().getDay() + 1) % 7] }} {{ realJD }} {{ shamsiMonths[realJM - 1] }} {{ realJY }}
-          </p>
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- سوییچر شمسی/میلادی -->
+            <div class="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/10">
+              <button @click="calendarMode = 'shamsi'"
+                      class="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1"
+                      :style="calendarMode === 'shamsi' ? { background: '#9333ea', color: '#fff' } : { color: 'rgba(255,255,255,0.6)' }">
+                <Sun class="w-3.5 h-3.5" /> شمسی
+              </button>
+              <button @click="calendarMode = 'gregorian'"
+                      class="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1"
+                      :style="calendarMode === 'gregorian' ? { background: '#9333ea', color: '#fff' } : { color: 'rgba(255,255,255,0.6)' }">
+                <Globe class="w-3.5 h-3.5" /> میلادی
+              </button>
+            </div>
+
+            <!-- دکمه بازگشت به امروز -->
+            <button @click="goToToday"
+                    class="px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition">
+              امروز
+            </button>
+          </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <!-- دکمه صدای طبیعت -->
-          <button @click="toggleAudio" 
-                  class="px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all backdrop-blur-md border border-white/20 hover:scale-105 active:scale-95"
-                  :class="isAudioPlaying ? 'bg-green-500/80 text-white animate-pulse' : 'bg-white/10 text-white'">
-            <Volume2 v-if="isAudioPlaying" class="w-4 h-4" />
-            <VolumeX v-else class="w-4 h-4" />
-            <span>{{ isAudioPlaying ? 'صدای طبیعت (روشن)' : 'پخش صدای طبیعت' }}</span>
-          </button>
+        <!-- ردیف دوم: ابزار تبدیل تاریخ + برو به تاریخ -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-white/10">
+          <!-- ابزار تبدیل تاریخ: دو wheel picker (ورودی + خروجی) -->
+          <div class="p-3 rounded-xl bg-black/30 border border-white/10 space-y-2">
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] font-black opacity-80 flex items-center gap-1.5">
+                <ArrowRightLeft class="w-3.5 h-3.5 text-blue-400" /> تبدیل تاریخ
+              </p>
+              <div class="flex items-center gap-1 text-[10px]">
+                <span class="px-2 py-0.5 rounded-md font-bold"
+                      :class="convertDirection === 'sh2g' ? 'bg-blue-500/30 text-blue-300' : 'opacity-50'">شمسی</span>
+                <button @click="swapConvertDirection" class="p-1 rounded hover:bg-white/10" title="تغییر جهت">
+                  <ArrowRightLeft class="w-3 h-3" />
+                </button>
+                <span class="px-2 py-0.5 rounded-md font-bold"
+                      :class="convertDirection === 'g2sh' ? 'bg-blue-500/30 text-blue-300' : 'opacity-50'">میلادی</span>
+              </div>
+            </div>
+            <div class="flex gap-2 items-center">
+              <div class="flex-1">
+                <WheelDatePicker
+                  :model-value="convertSource"
+                  @update:model-value="onConvertSourceChange"
+                  :default-type="convertDirection === 'sh2g' ? 'shamsi' : 'gregorian'" />
+              </div>
+              <ArrowRightLeft class="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <div class="flex-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-xs font-mono flex items-center min-h-[28px]"
+                   :class="convertDirection === 'g2sh' ? 'justify-end' : 'justify-start'">
+                <span v-if="convertResult" class="font-black text-amber-300 truncate w-full text-center" dir="ltr">{{ convertResult }}</span>
+                <span v-else class="opacity-50 text-center w-full">خروجی</span>
+              </div>
+            </div>
+          </div>
 
-          <!-- دکمه آپلود عکس شخصی -->
-          <button @click="showUploadModal = true" 
-                  class="px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all bg-purple-600/80 hover:bg-purple-600 text-white backdrop-blur-md shadow-lg hover:scale-105 active:scale-95">
-            <ImageIcon class="w-4 h-4" />
-            <span>تغییر پس‌زمینه تقویم</span>
-          </button>
-
-          <!-- دکمه بازگشت به امروز -->
-          <button @click="goToToday" 
-                  class="px-4 py-2.5 rounded-2xl font-bold text-xs bg-white/20 hover:bg-white/30 text-white backdrop-blur-md transition hover:scale-105 active:scale-95">
-            امروز
-          </button>
+          <!-- برو به تاریخ -->
+          <div class="p-3 rounded-xl bg-black/30 border border-white/10 space-y-2">
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] font-black opacity-80 flex items-center gap-1.5">
+                <CalendarIcon class="w-3.5 h-3.5 text-amber-400" /> برو به تاریخ
+              </p>
+              <div class="flex items-center gap-1 text-[10px]">
+                <span class="px-2 py-0.5 rounded-md font-bold"
+                      :class="gotoDateType === 'shamsi' ? 'bg-amber-500/30 text-amber-300' : 'opacity-50'">شمسی</span>
+                <button @click="swapGotoType" class="p-1 rounded hover:bg-white/10" title="تغییر نوع">
+                  <ArrowRightLeft class="w-3 h-3" />
+                </button>
+                <span class="px-2 py-0.5 rounded-md font-bold"
+                      :class="gotoDateType === 'gregorian' ? 'bg-amber-500/30 text-amber-300' : 'opacity-50'">میلادی</span>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <div class="flex-1">
+                <WheelDatePicker
+                  :model-value="gotoDateValue"
+                  @update:model-value="handleGotoDateInput"
+                  :default-type="gotoDateType" />
+              </div>
+              <button @click="performGoto"
+                      :disabled="!gotoDateValue"
+                      class="px-4 py-1.5 rounded-lg bg-amber-500/90 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-black text-xs transition flex items-center gap-1">
+                برو
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- بنر کارهای عقب‌افتاده -->
-      <div v-if="overdueTasks.length > 0" class="p-5 rounded-3xl bg-red-900/40 backdrop-blur-md border border-red-500/50 flex flex-col md:flex-row md:items-center justify-between gap-4 text-white shadow-2xl animate-in fade-in duration-300">
+      <div v-if="overdueTasks.length > 0" class="p-4 rounded-2xl bg-red-900/40 backdrop-blur-md border border-red-500/50 flex flex-col md:flex-row md:items-center justify-between gap-3 text-white shadow-2xl">
         <div class="flex items-center gap-3">
-          <AlertTriangle class="w-6 h-6 text-red-400 shrink-0 animate-bounce" />
+          <AlertTriangle class="w-5 h-5 sm:w-6 sm:h-6 text-red-400 shrink-0 animate-bounce" />
           <div>
-            <h3 class="font-black text-base">توجه: {{ overdueTasks.length }} تسک عقب‌افتاده دارید</h3>
-            <p class="text-xs opacity-70">مهلت انجام این کارها به پایان رسیده است.</p>
+            <h3 class="font-black text-sm sm:text-base">توجه: {{ overdueTasks.length }} تسک عقب‌افتاده دارید</h3>
+            <p class="text-[10px] sm:text-xs opacity-70">مهلت انجام این کارها به پایان رسیده است.</p>
           </div>
         </div>
         <div class="flex gap-2 overflow-x-auto pb-1">
-          <div v-for="t in overdueTasks.slice(0, 3)" :key="t.id" class="px-3 py-1.5 rounded-xl bg-red-500/30 text-white text-xs font-bold truncate max-w-[180px]">
+          <div v-for="t in overdueTasks.slice(0, 3)" :key="t.id" class="px-2.5 py-1 rounded-lg bg-red-500/30 text-white text-[10px] sm:text-xs font-bold truncate max-w-[180px]">
             {{ t.title }}
           </div>
         </div>
       </div>
 
-      <!-- شبکه تقویم و پنل روز -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+      <!-- ═══════ شبکه تقویم و پنل روز ═══════ -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+
         <!-- ۱. جدول ماهانه شیشه‌ای (۸ ستون) -->
-        <div class="lg:col-span-8 rounded-3xl border border-white/10 p-6 md:p-8 bg-black/30 backdrop-blur-xl shadow-2xl space-y-6 text-white">
-          
+        <div class="lg:col-span-8 glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 space-y-4 text-white">
+
           <!-- ناوبری ماه -->
-          <div class="flex items-center justify-between mb-4">
-            <button @click="prevMonth" class="p-3 rounded-2xl bg-white/10 hover:bg-white/20 transition flex items-center gap-1 text-xs font-bold">
-              <ChevronRight class="w-5 h-5" /> ماه قبل
+          <div class="flex items-center justify-between">
+            <button @click="prevMonth" class="p-2 sm:p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-1 text-[11px] sm:text-xs font-bold">
+              <ChevronRight class="w-4 h-4 sm:w-5 sm:h-5" /> <span class="hidden sm:inline">ماه قبل</span>
             </button>
 
-            <h2 class="text-2xl font-black drop-shadow-md">
-              {{ shamsiMonths[currentMonth - 1] }} {{ currentYear }}
+            <h2 class="text-base sm:text-xl md:text-2xl font-black drop-shadow-md text-center">
+              {{ currentMonthTitle }}
             </h2>
 
-            <button @click="nextMonth" class="p-3 rounded-2xl bg-white/10 hover:bg-white/20 transition flex items-center gap-1 text-xs font-bold">
-              ماه بعد <ChevronLeft class="w-5 h-5" />
+            <button @click="nextMonth" class="p-2 sm:p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-1 text-[11px] sm:text-xs font-bold">
+              <span class="hidden sm:inline">ماه بعد</span> <ChevronLeft class="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
 
           <!-- روزهای هفته (شنبه تا جمعه) -->
-          <div class="grid grid-cols-7 gap-2 text-center text-xs font-black opacity-80 pb-3 border-b border-white/10">
+          <div class="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] sm:text-xs font-black opacity-80 pb-2 border-b border-white/10">
             <div v-for="w in weekDays" :key="w">{{ w }}</div>
           </div>
 
-          <!-- خانه های تقویم (Grid زنده) -->
-          <div class="grid grid-cols-7 gap-2 md:gap-3 text-center">
+          <!-- خانه های تقویم -->
+          <div class="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3 text-center">
             <template v-for="(cell, index) in monthDaysGrid" :key="index">
-              
-              <div v-if="cell.isPadding" class="aspect-square rounded-2xl opacity-5 bg-white/5"></div>
+
+              <div v-if="cell.isPadding" class="aspect-square rounded-xl sm:rounded-2xl opacity-5 bg-white/5"></div>
 
               <button v-else
                       @click="selectedDayNum = cell.dayNum"
-                      class="aspect-square rounded-2xl border p-1 md:p-2 relative flex flex-col justify-between transition-all duration-300 hover:scale-105 active:scale-95 group shadow-lg"
-                      :class="selectedDayNum === cell.dayNum ? 
-                        'bg-blue-600 border-blue-400 text-white ring-4 ring-blue-500/30 shadow-blue-500/40' : 
-                        cell.isToday ? 
-                        'bg-blue-500/30 border-blue-400 text-white' : 
+                      class="aspect-square rounded-xl sm:rounded-2xl border p-0.5 sm:p-1 md:p-2 relative flex flex-col justify-between transition-all duration-200 hover:scale-105 active:scale-95 group shadow-lg"
+                      :class="selectedDayNum === cell.dayNum ?
+                        'bg-purple-600 border-purple-400 text-white ring-2 ring-purple-400/50 shadow-purple-500/40' :
+                        cell.isToday ?
+                        'bg-amber-500/25 border-amber-400 text-white ring-2 ring-amber-400/60 shadow-lg shadow-amber-500/30' :
                         'bg-white/10 border-white/10 text-white hover:bg-white/20'">
-                
-                <!-- عدد روز شمسی -->
-                <div class="flex justify-between items-center w-full">
-                  <span class="text-base md:text-lg font-black leading-none drop-shadow">{{ cell.dayNum }}</span>
-                  <span v-if="cell.isToday" class="text-[9px] px-1 rounded bg-blue-500 text-white font-bold">امروز</span>
+
+                <!-- عدد روز -->
+                <div class="flex justify-between items-start w-full">
+                  <span class="text-xs sm:text-base md:text-lg font-black leading-none drop-shadow">{{ cell.dayNum }}</span>
+                  <span v-if="cell.isToday" class="text-[7px] sm:text-[9px] px-1 rounded bg-amber-500 text-black font-black">امروز</span>
                 </div>
 
-                <!-- نقاط نشانگر تسک‌ها -->
-                <div class="flex justify-center gap-1 my-0.5">
+                <!-- نشانگر تسک‌ها: دایره‌های رنگی + شمارنده -->
+                <div class="flex justify-center items-center gap-0.5 my-0.5 min-h-[6px]">
                   <span v-for="(t, idx) in getTasksForDayObj(cell).slice(0, 3)" :key="idx"
-                        class="w-2 h-2 rounded-full shadow-sm"
+                        class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shadow-sm"
                         :style="{ background: t.is_completed ? '#22c55e' : '#f97316' }">
+                  </span>
+                  <span v-if="getTasksForDayObj(cell).length > 3"
+                        class="text-[7px] sm:text-[9px] font-black opacity-70">
+                    +{{ getTasksForDayObj(cell).length - 3 }}
                   </span>
                 </div>
 
-                <!-- معادل روز میلادی زیر خانه -->
-                <div class="text-[9px] text-left opacity-60 font-mono leading-none" dir="ltr">
-                  {{ cell.gregDay }} {{ cell.gregMonthName }}
+                <!-- معادل تاریخ دیگر زیر خانه -->
+                <div class="text-[7px] sm:text-[9px] text-center opacity-60 font-mono leading-none truncate" :dir="calendarMode === 'gregorian' ? 'rtl' : 'ltr'">
+                  <template v-if="calendarMode === 'shamsi'">
+                    {{ cell.gregDay }} {{ cell.gregMonthName }}
+                  </template>
+                  <template v-else-if="cell.shamsiSlash">
+                    <span dir="rtl">{{ cell.shamsiSlash }}</span>
+                  </template>
                 </div>
               </button>
 
             </template>
           </div>
+
+          <!-- راهنمای پایین -->
+          <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-3 border-t border-white/5 text-[10px] sm:text-xs opacity-70">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-md bg-amber-500/30 ring-1 ring-amber-400"></span> امروز</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-md bg-purple-600 ring-1 ring-purple-400"></span> انتخاب‌شده</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> انجام‌شده</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-orange-500"></span> مانده</span>
+          </div>
         </div>
 
         <!-- ۲. پنل تسک‌های روز انتخابی (۴ ستون) -->
-        <div class="lg:col-span-4 rounded-3xl border border-white/10 p-6 bg-black/30 backdrop-blur-xl shadow-2xl flex flex-col justify-between text-white">
-          
+        <div class="lg:col-span-4 glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 flex flex-col justify-between text-white">
+
           <div>
-            <div class="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-              <div>
-                <p class="text-xs opacity-60 font-bold">برنامه‌های روز انتخابی</p>
-                <h3 class="text-xl font-black">
-                  {{ selectedDayNum }} {{ shamsiMonths[currentMonth - 1] }} {{ currentYear }}
+            <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+              <div class="min-w-0">
+                <p class="text-[10px] sm:text-xs opacity-60 font-bold">برنامه‌های روز انتخابی</p>
+                <h3 class="text-base sm:text-xl font-black truncate">
+                  {{ selectedDayNum }} {{ calendarMode === 'gregorian' ? englishMonths[currentMonth - 1] : shamsiMonths[currentMonth - 1] }} {{ currentYear }}
                 </h3>
-                <p v-if="selectedDayObj.gregISO" class="text-xs opacity-50 font-mono mt-0.5" dir="ltr">
-                  {{ selectedDayObj.gregDay }} {{ selectedDayObj.gregMonthName }} ({{ selectedDayObj.gregISO }})
+                <p v-if="selectedDayObj.gregISO" class="text-[10px] sm:text-xs opacity-50 font-mono mt-0.5 truncate" dir="ltr">
+                  <span v-if="calendarMode === 'shamsi'">{{ selectedDayObj.gregDay }} {{ selectedDayObj.gregMonthName }} ({{ selectedDayObj.gregISO }})</span>
+                  <span v-else>{{ selectedDayObj.shamsiSlash }}</span>
                 </p>
               </div>
-              <div class="p-3 rounded-2xl bg-blue-500/20 text-blue-400">
-                <CalendarIcon class="w-6 h-6" />
+              <div class="p-2.5 sm:p-3 rounded-xl bg-purple-500/20 text-purple-400 flex-shrink-0">
+                <CalendarIcon class="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             </div>
 
             <!-- لیست تسک‌ها -->
-            <div v-if="tasksForSelectedDay.length === 0" class="py-16 text-center opacity-50 space-y-2">
-              <Clock class="w-12 h-12 mx-auto" />
-              <p class="text-sm font-bold">هیچ برنامه‌ای برای این روز ثبت نشده</p>
+            <div v-if="tasksForSelectedDay.length === 0" class="py-12 text-center opacity-50 space-y-2">
+              <Clock class="w-10 h-10 sm:w-12 sm:h-12 mx-auto" />
+              <p class="text-xs sm:text-sm font-bold">هیچ برنامه‌ای برای این روز ثبت نشده</p>
             </div>
 
-            <div v-else class="space-y-3 max-h-[450px] overflow-y-auto pr-1 custom-scrollbar">
-              <div v-for="t in tasksForSelectedDay" :key="t.id" 
-                   class="p-4 rounded-2xl border border-white/10 backdrop-blur-md transition-all flex items-center justify-between gap-3 bg-white/5 hover:bg-white/10">
-                
-                <div class="flex items-center gap-3">
-                  <button @click="toggleTask(t)" 
-                          class="w-6 h-6 rounded-lg border-2 flex items-center justify-center transition shrink-0"
+            <div v-else class="space-y-2.5 max-h-[450px] overflow-y-auto pr-1 custom-scrollbar">
+              <div v-for="t in tasksForSelectedDay" :key="t.id"
+                   class="p-3 rounded-xl border border-white/10 backdrop-blur-md transition-all flex items-center justify-between gap-2.5 bg-white/5 hover:bg-white/10">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <button @click="toggleTask(t)"
+                          class="w-5 h-5 sm:w-6 sm:h-6 rounded-md sm:rounded-lg border-2 flex items-center justify-center transition shrink-0"
                           :style="{ borderColor: t.is_completed ? '#22c55e' : 'rgba(255,255,255,0.3)', background: t.is_completed ? '#22c55e' : 'transparent' }">
-                    <Check v-if="t.is_completed" class="w-4 h-4 text-white" />
+                    <Check v-if="t.is_completed" class="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                   </button>
-                  <div>
-                    <p class="font-bold text-sm" :class="t.is_completed ? 'line-through opacity-40' : ''">
+                  <div class="min-w-0 flex-1">
+                    <p class="font-bold text-xs sm:text-sm truncate" :class="t.is_completed ? 'line-through opacity-40' : ''">
                       {{ t.title }}
                     </p>
-                    <p v-if="t.category" class="text-[10px] opacity-60 mt-0.5">{{ t.category }}</p>
+                    <p v-if="t.category" class="text-[9px] sm:text-[10px] opacity-60 mt-0.5 truncate">{{ t.category }}</p>
                   </div>
                 </div>
-
-                <span v-if="t.priority > 0" class="text-[9px] font-black px-2 py-0.5 rounded-full text-white" :style="{ background: t.priority === 2 ? '#ef4444' : '#eab308' }">
+                <span v-if="t.priority > 0" class="text-[8px] sm:text-[9px] font-black px-1.5 sm:px-2 py-0.5 rounded-full text-white flex-shrink-0" :style="{ background: t.priority === 2 ? '#ef4444' : '#eab308' }">
                   {{ t.priority === 2 ? 'فوری' : 'مهم' }}
                 </span>
               </div>
             </div>
           </div>
 
-          <div class="pt-6 border-t border-white/10 mt-6 text-center opacity-60 text-xs">
+          <div class="pt-4 border-t border-white/10 mt-4 text-center opacity-60 text-[10px] sm:text-xs">
             مجموع کارهای این روز: {{ tasksForSelectedDay.length }} مورد
           </div>
 
@@ -502,54 +579,15 @@ onUnmounted(() => {
 
     </div>
 
-    <!-- ========== ۴. مودال آپلود عکس اختصاصی با کادر مشخصات کامل ========== -->
-    <div v-if="showUploadModal" class="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" @click.self="showUploadModal = false">
-      <div class="w-full max-w-md rounded-3xl p-8 bg-gray-900 border border-white/10 shadow-2xl text-white space-y-6 animate-in zoom-in duration-200">
-        
-        <div class="flex justify-between items-center">
-          <h3 class="text-xl font-black flex items-center gap-2">
-            <ImageIcon class="w-5 h-5 text-purple-400" /> تنطیم پس‌زمینه تقویم
-          </h3>
-          <button @click="showUploadModal = false" class="p-1 hover:bg-white/10 rounded-full"><X /></button>
-        </div>
-
-        <!-- کادر مشخصات تصویر مناسب -->
-        <div class="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-xs leading-relaxed space-y-1.5 text-blue-200">
-          <p class="font-bold text-blue-400 flex items-center gap-1"><Sparkles class="w-4 h-4" /> مشخصات عکس پیشنهادی:</p>
-          <p>• <b>ابعاد استاندارد:</b> ۱۹۲۰ در ۱۰۸۰ پیکسل (افقی Full HD)</p>
-          <p>• <b>فرمت‌های مجاز:</b> JPG ، PNG یا WEBP</p>
-          <p>• <b>حداکثر حجم:</b> ۵ مگابایت (جهت سرعت بالای اجرای برنامه)</p>
-        </div>
-
-        <!-- کادر آپلود -->
-        <label class="border-2 border-dashed border-white/20 hover:border-purple-500 rounded-3xl p-8 flex flex-col items-center justify-center cursor-pointer transition bg-white/5 hover:bg-white/10 group">
-          <Upload class="w-10 h-10 mb-2 text-purple-400 group-hover:scale-110 transition-transform" />
-          <span class="text-sm font-bold mb-1">برای انتخاب عکس کلیک کنید</span>
-          <span class="text-[10px] opacity-50">عکس انتخابی برای همیشه در مرروگرتان ذخیره می‌شود</span>
-          <input type="file" @change="handleImageUpload" accept="image/*" class="hidden" />
-        </label>
-
-        <p v-if="uploadError" class="text-xs text-red-400 text-center font-bold">{{ uploadError }}</p>
-
-        <!-- دکمه‌های عملیات -->
-        <div class="flex gap-3 pt-2">
-          <button v-if="customBgUrl" @click="resetDefaultBg" class="flex-1 py-3 rounded-2xl bg-red-500/20 text-red-300 border border-red-500/30 font-bold text-xs flex items-center justify-center gap-1 hover:bg-red-500/30 transition">
-            <RotateCcw class="w-4 h-4" /> بازگشت به عکس رودخانه پیش‌فرض
-          </button>
-          <button @click="showUploadModal = false" class="px-6 py-3 rounded-2xl bg-white/10 hover:bg-white/20 font-bold text-xs">
-            بستن
-          </button>
-        </div>
-
-      </div>
-    </div>
-
   </div>
 </template>
 
 <style scoped>
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
-.animate-in { animation: fadeIn 0.3s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.glass-card {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
 </style>

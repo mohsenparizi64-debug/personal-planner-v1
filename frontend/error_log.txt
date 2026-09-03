@@ -1,0 +1,107 @@
+﻿
+> frontend@0.0.0 build
+> vite build
+
+[36mvite v8.1.5 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...Γ£ô 1776 modules transformed.
+node.exe : [31mΓ£ù[39m Build failed in 2.72s
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mΓ£ù[39m Build failed in 2.72s:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[31merror during build:
+[31mBuild failed with 4 errors:
+
+[31m[PARSE_ERROR] [0mEncountered diff marker
+   [38;5;246mΓò¡[0m[38;5;246mΓöÇ[0m[38;5;246m[[0m src/services/api.js:2:1 [38;5;246m][0m
+   [38;5;246mΓöé[0m
+ [38;5;246m2 Γöé[0m <<<<<<<[38;5;249m [0m[38;5;249mH[0m[38;5;249mE[0m[38;5;249mA[0m[38;5;249mD[0m
+ [38;5;240m  Γöé[0m ΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇ  
+ [38;5;240m  Γöé[0m    Γò░ΓöÇΓöÇΓöÇΓöÇΓöÇ between this marker and `=======` is the code that we're merging into
+ [38;5;240m  Γöé[0m 
+ [38;5;240m  Γöé[0m [38;5;115mHelp[0m: This conflict marker appears to be incomplete (missing `=======` or 
+`>>>>>>>`).
+ [38;5;240m  Γöé[0m       Check if the conflict markers were accidentally modified or partially deleted.
+[38;5;246mΓöÇΓöÇΓöÇΓò»[0m
+
+[plugin vite:vue] C:/personal-planner-v1/frontend/src/App.vue:327:2
+RolldownError: Attribute name cannot contain U+0022 ("), U+0027 ('), and U+003C (<).
+SyntaxError: Attribute name cannot contain U+0022 ("), U+0027 ('), and U+003C (<).
+    at createCompilerError 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1374:17)
+    at Object.emitError [as onerr] 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3001:5)
+    at Tokenizer.stateInAttrName 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:868:16)
+    at Tokenizer.parse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1117:16)
+    at Object.baseParse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3033:13)
+    at Object.parse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.prod.js:665:23)
+    at Object.parse$1 [as parse] 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+    at createDescriptor (file:///C:/personal-planner-v1/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+    at transformMain (file:///C:/personal-planner-v1/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:1352:33)
+    at TransformPluginContextImpl.handler 
+(file:///C:/personal-planner-v1/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:1763:27)
+[plugin vite:vue] C:/personal-planner-v1/frontend/src/pages/RegisterPage.vue:179:5
+RolldownError: Element is missing end tag.
+SyntaxError: Element is missing end tag.
+    at createCompilerError 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1374:17)
+    at emitError 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3001:5)
+    at Object.onclosetag 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:2398:13)
+    at Tokenizer.stateInClosingTagName 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:799:16)
+    at Tokenizer.parse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1157:16)
+    at Object.baseParse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3033:13)
+    at Object.parse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.prod.js:665:23)
+    at Object.parse$1 [as parse] 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+    at createDescriptor (file:///C:/personal-planner-v1/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+    at transformMain (file:///C:/personal-planner-v1/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:1352:33)
+[plugin vite:vue] C:/personal-planner-v1/frontend/src/pages/TasksPage.vue:594:9
+RolldownError: Element is missing end tag.
+SyntaxError: Element is missing end tag.
+    at createCompilerError 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1374:17)
+    at emitError 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3001:5)
+    at Object.onclosetag 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:2398:13)
+    at Tokenizer.stateInClosingTagName 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:799:16)
+    at Tokenizer.parse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1157:16)
+    at Object.baseParse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3033:13)
+    at Object.parse 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.prod.js:665:23)
+    at Object.parse$1 [as parse] 
+(C:\personal-planner-v1\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+    at createDescriptor (file:///C:/personal-planner-v1/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+    at transformMain 
+(file:///C:/personal-planner-v1/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:1352:33)[31m
+    at aggregateBindingErrorsIntoJsError 
+(file:///C:/personal-planner-v1/frontend/node_modules/rolldown/dist/shared/error-BHRSI0R7.mjs:48:18)
+    at unwrapBindingResult 
+(file:///C:/personal-planner-v1/frontend/node_modules/rolldown/dist/shared/error-BHRSI0R7.mjs:18:128)
+    at #build 
+(file:///C:/personal-planner-v1/frontend/node_modules/rolldown/dist/shared/rolldown-build-CtPvmZgJ.mjs:3276:34)
+    at async buildEnvironment 
+(file:///C:/personal-planner-v1/frontend/node_modules/vite/dist/node/chunks/node.js:33061:66)
+    at async Object.build (file:///C:/personal-planner-v1/frontend/node_modules/vite/dist/node/chunks/node.js:33483:19)
+    at async Object.buildApp 
+(file:///C:/personal-planner-v1/frontend/node_modules/vite/dist/node/chunks/node.js:33480:153)
+    at async CAC.<anonymous> (file:///C:/personal-planner-v1/frontend/node_modules/vite/dist/node/cli.js:776:3) {
+  errors: [Getter/Setter]
+}[39m

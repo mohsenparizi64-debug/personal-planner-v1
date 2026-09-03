@@ -53,3 +53,10 @@ async def delete_transaction(trans_id: int, db: AsyncSession = Depends(get_db), 
     result = await finance_crud.delete_transaction(db, trans_id, current_user.id)
     if not result: raise HTTPException(404, "Transaction not found")
     return {"message": "deleted"}
+
+# ====== گزارش چند-بازه‌ای ======
+# این مسیر قبل از /transactions/{trans_id} اهمیتی ندارد چون path متفاوته، اما برای خوانایی اینجاست
+@router.get("/recent-report")
+async def recent_report(days: int = 7, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """گزارش تراکنش‌های بازه اخیر (7/30/90 روز) برای صفحه مالی"""
+    return await finance_crud.get_recent_finance_report(db, current_user.id, days)

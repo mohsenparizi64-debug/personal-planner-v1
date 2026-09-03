@@ -196,11 +196,12 @@ onMounted(fetchMovies)
 </script>
 
 <template>
-  <div class="relative min-h-screen text-right p-6 md:p-10 overflow-hidden" dir="rtl">
-    
-    <!-- پس‌زمینه سالن سینما -->
-    <div class="fixed inset-0 z-0 bg-cover bg-center" style="background-image: url('/cinema-bg.jpg');">
-      <div class="absolute inset-0 bg-black/35"></div>
+  <div class="relative min-h-screen text-right p-3 sm:p-4 md:p-8 lg:p-10 overflow-hidden" dir="rtl">
+
+    <!-- پس‌زمینه شیشه‌ای gradient (هماهنگ با داشبورد) -->
+    <div class="fixed inset-0 z-0 bg-cover bg-center"
+         style="background-image: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);">
+      <div class="absolute inset-0 bg-black/30"></div>
     </div>
 
     <!-- محتوای اصلی -->
@@ -213,98 +214,101 @@ onMounted(fetchMovies)
       </div>
 
       <!-- هدر -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl">
+      <div class="glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 class="text-3xl font-black mb-1 drop-shadow-md">آرشیو سینمایی من</h1>
-          <p class="text-xs opacity-70">کالکشن هوشمند فیلم‌ها، سریال‌ها و آثار سینمایی</p>
+          <h1 class="text-xl sm:text-2xl md:text-3xl font-black mb-1 drop-shadow-md flex items-center gap-2">
+            <Film class="w-6 h-6 sm:w-7 sm:h-7 text-blue-400" />
+            آرشیو سینمایی من
+          </h1>
+          <p class="text-[11px] sm:text-xs opacity-70">کالکشن هوشمند فیلم‌ها، سریال‌ها و آثار سینمایی</p>
         </div>
-        <div class="flex gap-3">
-          <button @click="pickRandomMovie" class="px-5 py-3 rounded-2xl font-bold text-white transition flex items-center gap-2 shadow-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:scale-105 active:scale-95">
-            <Sparkles class="w-5 h-5 text-yellow-300" /> چی ببینم؟
+        <div class="flex gap-2 sm:gap-3">
+          <button @click="pickRandomMovie" class="px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-white text-xs sm:text-sm transition flex items-center gap-1.5 sm:gap-2 shadow-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:scale-105 active:scale-95">
+            <Sparkles class="w-4 h-4 sm:w-5 sm:h-5 text-yellow-300" /> چی ببینم؟
           </button>
-          <button @click="openNewModal" class="px-5 py-3 rounded-2xl font-bold text-white transition flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95" :style="{ background: 'var(--accent)' }">
-            <Plus class="w-5 h-5" /> افزودن فیلم
+          <button @click="openNewModal" class="px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-white text-xs sm:text-sm transition flex items-center gap-1.5 sm:gap-2 shadow-lg hover:scale-105 active:scale-95" :style="{ background: 'var(--accent)' }">
+            <Plus class="w-4 h-4 sm:w-5 sm:h-5" /> <span class="hidden sm:inline">افزودن فیلم</span><span class="sm:hidden">فیلم</span>
           </button>
         </div>
       </div>
 
       <!-- داشبورد آمار -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="rounded-3xl p-6 border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl flex items-center gap-4">
-          <div class="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center"><Film class="w-6 h-6" /></div>
-          <div>
-            <p class="text-xs opacity-60">کل عناوین</p>
-            <p class="text-2xl font-black">{{ movies.length }} عنوان</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
+        <div class="glass-card p-3 sm:p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/10 flex items-center gap-2.5 sm:gap-3 md:gap-4">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0"><Film class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" /></div>
+          <div class="min-w-0">
+            <p class="text-[10px] sm:text-xs opacity-60 truncate">کل عناوین</p>
+            <p class="text-lg sm:text-2xl md:text-3xl font-black truncate">{{ movies.length }}</p>
           </div>
         </div>
 
-        <div class="rounded-3xl p-6 border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl flex items-center gap-4">
-          <div class="w-12 h-12 rounded-2xl bg-green-500/20 text-green-400 flex items-center justify-center"><Eye class="w-6 h-6" /></div>
-          <div>
-            <p class="text-xs opacity-60">دیده‌شده‌ها</p>
-            <p class="text-2xl font-black text-green-400">{{ watchedCount }} عنوان</p>
+        <div class="glass-card p-3 sm:p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/10 flex items-center gap-2.5 sm:gap-3 md:gap-4">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-green-500/20 text-green-400 flex items-center justify-center flex-shrink-0"><Eye class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" /></div>
+          <div class="min-w-0">
+            <p class="text-[10px] sm:text-xs opacity-60 truncate">دیده‌شده‌ها</p>
+            <p class="text-lg sm:text-2xl md:text-3xl font-black text-green-400 truncate">{{ watchedCount }}</p>
           </div>
         </div>
 
-        <div class="rounded-3xl p-6 border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl flex items-center gap-4">
-          <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center"><Flag class="w-6 h-6" /></div>
-          <div>
-            <p class="text-xs opacity-60">آثار ایرانی</p>
-            <p class="text-2xl font-black text-amber-400">{{ iranianCount }} عنوان</p>
+        <div class="glass-card p-3 sm:p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/10 flex items-center gap-2.5 sm:gap-3 md:gap-4">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0"><Flag class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" /></div>
+          <div class="min-w-0">
+            <p class="text-[10px] sm:text-xs opacity-60 truncate">آثار ایرانی</p>
+            <p class="text-lg sm:text-2xl md:text-3xl font-black text-amber-400 truncate">{{ iranianCount }}</p>
           </div>
         </div>
 
-        <div class="rounded-3xl p-6 border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl flex items-center gap-4">
-          <div class="w-12 h-12 rounded-2xl bg-yellow-500/20 text-yellow-400 flex items-center justify-center"><Star class="w-6 h-6" /></div>
-          <div>
-            <p class="text-xs opacity-60">میانگین امتیاز</p>
-            <p class="text-2xl font-black text-yellow-400">{{ avgRating }} / ۵</p>
+        <div class="glass-card p-3 sm:p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/10 flex items-center gap-2.5 sm:gap-3 md:gap-4">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-yellow-500/20 text-yellow-400 flex items-center justify-center flex-shrink-0"><Star class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" /></div>
+          <div class="min-w-0">
+            <p class="text-[10px] sm:text-xs opacity-60 truncate">میانگین امتیاز</p>
+            <p class="text-lg sm:text-2xl md:text-3xl font-black text-yellow-400 truncate">{{ avgRating }} / ۵</p>
           </div>
         </div>
       </div>
 
       <!-- ابزارهای فیلتر پیشرفته (Filter Bar) -->
-      <div class="p-5 rounded-3xl border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl space-y-4">
-        <div class="flex items-center gap-3 border-b border-white/10 pb-3">
-          <Search class="w-5 h-5 opacity-40" />
-          <input v-model="filterSearch" placeholder="جستجوی نام فیلم..." class="w-full bg-transparent outline-none text-sm placeholder-white/40" />
+      <div class="glass-card p-3 sm:p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/10 space-y-3 sm:space-y-4">
+        <div class="flex items-center gap-3 border-b border-white/10 pb-2 sm:pb-3">
+          <Search class="w-4 h-4 sm:w-5 sm:h-5 opacity-40 flex-shrink-0" />
+          <input v-model="filterSearch" placeholder="جستجوی نام فیلم..." class="w-full bg-transparent outline-none text-xs sm:text-sm placeholder-white/40" />
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
           <!-- ایرانی / خارجی -->
-          <select v-model="filterOrigin" class="px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-xs outline-none">
-            <option value="all">همه کشورها (ایرانی/خارجی)</option>
-            <option value="iranian">فقط فیلم‌های ایرانی 🇮🇷</option>
-            <option value="foreign">فقط فیلم‌های خارجی 🌐</option>
+          <select v-model="filterOrigin" class="px-2 sm:px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-[11px] sm:text-xs outline-none">
+            <option value="all">همه کشورها</option>
+            <option value="iranian">فقط ایرانی 🇮🇷</option>
+            <option value="foreign">فقط خارجی 🌐</option>
           </select>
 
           <!-- سینمایی / سریال / مستند -->
-          <select v-model="filterType" class="px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-xs outline-none">
-            <option value="all">همه انواع اثر</option>
-            <option value="movie">فقط سینمایی</option>
-            <option value="series">فقط سریال</option>
-            <option value="documentary">فقط مستند</option>
+          <select v-model="filterType" class="px-2 sm:px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-[11px] sm:text-xs outline-none">
+            <option value="all">همه انواع</option>
+            <option value="movie">سینمایی</option>
+            <option value="series">سریال</option>
+            <option value="documentary">مستند</option>
           </select>
 
           <!-- ژانر -->
-          <select v-model="filterGenre" class="px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-xs outline-none">
+          <select v-model="filterGenre" class="px-2 sm:px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-[11px] sm:text-xs outline-none">
             <option value="">همه ژانرها</option>
             <option v-for="g in genres" :key="g" :value="g">{{ g }}</option>
           </select>
 
           <!-- امتیاز -->
-          <select v-model="filterRating" class="px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-xs outline-none">
+          <select v-model="filterRating" class="px-2 sm:px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-[11px] sm:text-xs outline-none">
             <option value="all">همه امتیازها</option>
-            <option value="5">فقط ۵ ستاره‌ها ⭐⭐⭐⭐⭐</option>
-            <option value="4">۴ ستاره به بالا ⭐⭐⭐⭐</option>
-            <option value="3">۳ ستاره به بالا ⭐⭐⭐</option>
+            <option value="5">⭐⭐⭐⭐⭐</option>
+            <option value="4">۴+ ستاره</option>
+            <option value="3">۳+ ستاره</option>
           </select>
 
           <!-- وضعیت -->
-          <select v-model="filterStatus" class="px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-xs outline-none">
+          <select v-model="filterStatus" class="px-2 sm:px-3 py-2 rounded-xl border border-white/10 bg-black/50 text-[11px] sm:text-xs outline-none">
             <option value="all">همه وضعیت‌ها</option>
-            <option value="watched">دیده‌شده‌ها</option>
-            <option value="unwatched">لیست انتظار (دیده‌نشده)</option>
+            <option value="watched">دیده‌شده</option>
+            <option value="unwatched">لیست انتظار</option>
           </select>
         </div>
       </div>
@@ -368,45 +372,56 @@ onMounted(fetchMovies)
       </div>
 
       <!-- ========== مودال افزودن/ویرایش فیلم ========== -->
-      <div v-if="showModal" class="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" @click.self="showModal = false">
-        <div class="w-full max-w-lg rounded-3xl p-8 bg-gray-900 border border-white/10 shadow-2xl space-y-5 text-white">
-          <div class="flex justify-between items-center">
-            <h3 class="text-xl font-black">{{ editingMovie ? 'ویرایش اطلاعات فیلم' : 'افزودن به آرشیو' }}</h3>
-            <button @click="showModal = false" class="p-1 hover:bg-white/10 rounded-full"><X /></button>
+      <div v-if="showModal" class="fixed inset-0 z-[300] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md" @click.self="showModal = false">
+        <div class="w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-5 sm:p-7 bg-gray-900/95 border border-white/10 shadow-2xl shadow-black/50 text-white space-y-4 sm:space-y-5">
+
+          <!-- هدر مودال -->
+          <div class="flex items-center justify-between pb-3 border-b border-white/10">
+            <h3 class="text-lg sm:text-xl font-black flex items-center gap-2">
+              <Film class="w-5 h-5 text-blue-400" />
+              {{ editingMovie ? 'ویرایش فیلم' : 'افزودن فیلم جدید' }}
+            </h3>
+            <button @click="showModal = false" class="p-1.5 rounded-lg hover:bg-white/10 transition text-slate-400 hover:text-white">
+              <X class="w-5 h-5" />
+            </button>
           </div>
 
-          <div class="space-y-4 text-right" dir="rtl">
+          <div class="space-y-3 sm:space-y-4 text-right" dir="rtl">
+            <!-- عنوان + IMDb search -->
             <div>
-              <label class="text-xs mb-1.5 block opacity-70">عنوان (انگلیسی برای دریافت پوستر خودکار) *</label>
+              <label class="text-xs mb-1.5 block opacity-70 font-bold">عنوان (انگلیسی برای دریافت خودکار پوستر) *</label>
               <div class="flex gap-2">
-                <input v-model="form.title" placeholder="مثلاً: Inception" class="flex-1 px-4 py-3 rounded-xl border border-white/10 bg-black/40 outline-none text-sm" />
-                <button @click="searchOmdb" :disabled="isLoadingImdb" class="px-4 py-3 rounded-xl font-bold text-xs bg-yellow-500 text-black flex items-center gap-1 shadow-md hover:bg-yellow-400 disabled:opacity-50">
-                  <Sparkles class="w-4 h-4" /> {{ isLoadingImdb ? 'در حال دریافت...' : 'جستجوی IMDb' }}
+                <input v-model="form.title" placeholder="مثلاً: Inception"
+                       class="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-white/10 bg-black/40 outline-none text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/50" />
+                <button @click="searchOmdb" :disabled="isLoadingImdb"
+                        class="px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-bold text-[11px] sm:text-xs bg-yellow-500 text-black flex items-center gap-1 shadow-md hover:bg-yellow-400 disabled:opacity-50 transition flex-shrink-0">
+                  <Sparkles class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span class="hidden sm:inline">{{ isLoadingImdb ? 'دریافت...' : 'IMDb' }}</span>
+                  <span class="sm:hidden">IMDb</span>
                 </button>
               </div>
             </div>
 
-            <!-- کادر جدید: انتخاب ایرانی / خارجی -->
-            <div class="grid grid-cols-2 gap-3">
+            <!-- ایرانی/خارجی + نوع اثر -->
+            <div class="grid grid-cols-2 gap-2 sm:gap-3">
               <div>
-                <label class="text-xs mb-1.5 block opacity-70">منشأ اثر</label>
-                <div class="flex gap-2 p-1 rounded-xl bg-black/40 border border-white/10">
+                <label class="text-xs mb-1.5 block opacity-70 font-bold">منشأ</label>
+                <div class="flex gap-1 p-1 rounded-xl bg-black/40 border border-white/10">
                   <button type="button" @click="form.origin = 'foreign'"
-                          class="flex-1 py-2 rounded-lg text-xs font-bold transition"
+                          class="flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition"
                           :class="form.origin === 'foreign' ? 'bg-purple-600 text-white shadow' : 'opacity-50'">
                     🌐 خارجی
                   </button>
                   <button type="button" @click="form.origin = 'iranian'"
-                          class="flex-1 py-2 rounded-lg text-xs font-bold transition"
+                          class="flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition"
                           :class="form.origin === 'iranian' ? 'bg-amber-600 text-white shadow' : 'opacity-50'">
                     🇮🇷 ایرانی
                   </button>
                 </div>
               </div>
-
               <div>
-                <label class="text-xs mb-1.5 block opacity-70">نوع اثر</label>
-                <select v-model="form.movie_type" class="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-black/40 text-xs outline-none">
+                <label class="text-xs mb-1.5 block opacity-70 font-bold">نوع</label>
+                <select v-model="form.movie_type" class="w-full px-2.5 sm:px-3 py-2.5 rounded-xl border border-white/10 bg-black/40 text-[11px] sm:text-xs outline-none">
                   <option value="movie">سینمایی</option>
                   <option value="series">سریال</option>
                   <option value="documentary">مستند</option>
@@ -414,58 +429,72 @@ onMounted(fetchMovies)
               </div>
             </div>
 
+            <!-- ژانر -->
             <div>
-              <label class="text-xs mb-1.5 block opacity-70">ژانر</label>
-              <select v-model="form.category" class="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-black/40 text-xs outline-none">
+              <label class="text-xs mb-1.5 block opacity-70 font-bold">ژانر</label>
+              <select v-model="form.category" class="w-full px-2.5 sm:px-3 py-2.5 rounded-xl border border-white/10 bg-black/40 text-[11px] sm:text-xs outline-none">
                 <option v-for="g in genres" :key="g" :value="g">{{ g }}</option>
               </select>
             </div>
 
+            <!-- پوستر URL + پیش‌نمایش -->
             <div>
-              <label class="text-xs mb-1.5 block opacity-70">آدرس تصویر پوستر (URL)</label>
-              <input v-model="form.poster_url" placeholder="https://..." dir="ltr" class="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/40 outline-none text-xs" />
-              
-              <div v-if="form.poster_url" class="mt-3 flex items-center gap-3 p-2 rounded-xl bg-white/5 border border-white/10">
-                <img :src="form.poster_url" class="w-12 h-16 object-cover rounded-lg shadow-md" />
-                <div>
-                  <p class="text-xs font-bold text-green-400">پیش‌نمایش پوستر آماده است</p>
-                  <p class="text-[10px] opacity-50">امکان تعویض دستی آدرس عکس وجود دارد.</p>
+              <label class="text-xs mb-1.5 block opacity-70 font-bold">آدرس پوستر (URL)</label>
+              <input v-model="form.poster_url" placeholder="https://..." dir="ltr"
+                     class="w-full px-3 sm:px-4 py-2.5 rounded-xl border border-white/10 bg-black/40 outline-none text-[11px] sm:text-xs focus:ring-2 focus:ring-blue-500/50" />
+
+              <div v-if="form.poster_url" class="mt-2 flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/10">
+                <img :src="form.poster_url" class="w-10 h-14 sm:w-12 sm:h-16 object-cover rounded-lg shadow-md flex-shrink-0" />
+                <div class="min-w-0">
+                  <p class="text-[11px] sm:text-xs font-bold text-green-400 truncate">✓ پیش‌نمایش پوستر</p>
+                  <p class="text-[9px] sm:text-[10px] opacity-50">امکان تعویض دستی وجود دارد</p>
                 </div>
               </div>
             </div>
 
-            <div class="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-              <label class="flex items-center gap-3 cursor-pointer text-sm font-bold">
-                <input type="checkbox" v-model="form.is_watched" class="w-5 h-5 rounded-lg" />
+            <!-- وضعیت دیده‌شده + امتیاز + تاریخ -->
+            <div class="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 space-y-3">
+              <label class="flex items-center gap-2.5 cursor-pointer text-xs sm:text-sm font-bold">
+                <input type="checkbox" v-model="form.is_watched" class="w-4 h-4 sm:w-5 sm:h-5 rounded-md" />
                 این فیلم را دیده‌ام
               </label>
 
-              <div v-if="form.is_watched" class="space-y-3 pt-2">
+              <div v-if="form.is_watched" class="space-y-3 pt-1">
                 <div>
-                  <label class="text-xs mb-1 block opacity-70">امتیاز شما (۱ تا ۵ ستاره):</label>
-                  <div class="flex gap-2 text-yellow-400">
-                    <button v-for="star in 5" :key="star" @click="form.rating = star" type="button" class="p-1 hover:scale-125 transition">
-                      <Star class="w-6 h-6" :class="star <= form.rating ? 'fill-yellow-400' : 'opacity-20'" />
+                  <label class="text-xs mb-1 block opacity-70 font-bold">امتیاز (۱ تا ۵):</label>
+                  <div class="flex gap-1 text-yellow-400">
+                    <button v-for="star in 5" :key="star" @click="form.rating = star" type="button"
+                            class="p-1 hover:scale-125 transition">
+                      <Star class="w-5 h-5 sm:w-6 sm:h-6" :class="star <= form.rating ? 'fill-yellow-400' : 'opacity-20'" />
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label class="text-xs mb-1 block opacity-70">تاریخ تماشا:</label>
+                  <label class="text-xs mb-1 block opacity-70 font-bold">تاریخ تماشا:</label>
                   <DateInputPersian v-model="form.watch_date" />
                 </div>
               </div>
             </div>
 
+            <!-- یادداشت -->
             <div>
-              <label class="text-xs mb-1.5 block opacity-70">یادداشت / نقد شما</label>
-              <textarea v-model="form.notes" rows="2" placeholder="حس شما بعد از دیدن این فیلم..." class="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/40 outline-none text-sm"></textarea>
+              <label class="text-xs mb-1.5 block opacity-70 font-bold">یادداشت / نقد</label>
+              <textarea v-model="form.notes" rows="2" placeholder="حس شما بعد از دیدن..."
+                        class="w-full px-3 sm:px-4 py-2.5 rounded-xl border border-white/10 bg-black/40 outline-none text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/50 resize-none"></textarea>
             </div>
           </div>
 
-          <div class="flex gap-3 mt-6">
-            <button @click="saveMovie" class="flex-1 py-3.5 rounded-2xl text-white font-bold shadow-lg shadow-purple-500/20" :style="{ background: 'var(--accent)' }">ذخیره فیلم</button>
-            <button @click="showModal = false" class="px-6 py-3.5 rounded-2xl font-semibold bg-white/10 hover:bg-white/20">انصراف</button>
+          <!-- دکمه‌های تأیید/انصراف (همیشه در پایین مودال) -->
+          <div class="flex gap-2 sm:gap-3 pt-2 sticky bottom-0 bg-gray-900/95 -mx-5 sm:-mx-7 -mb-5 sm:-mb-7 px-5 sm:px-7 py-3 sm:py-4 border-t border-white/10">
+            <button @click="saveMovie" class="flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl text-white font-bold text-sm sm:text-base shadow-lg shadow-purple-500/20"
+                    :style="{ background: 'var(--accent)' }">
+              {{ editingMovie ? 'ذخیره تغییرات' : 'افزودن فیلم' }}
+            </button>
+            <button @click="showModal = false" class="px-4 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold bg-white/10 hover:bg-white/20 transition">
+              انصراف
+            </button>
           </div>
+
         </div>
       </div>
 
@@ -497,3 +526,11 @@ onMounted(fetchMovies)
 
   </div>
 </template>
+
+<style scoped>
+.glass-card {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+</style>
