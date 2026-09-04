@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock, ArrowRight, Eye, Sparkles, ListTodo } from 'lucide-vue-next'
+import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock, ArrowRight, Eye, Sparkles, ListTodo, PieChart } from 'lucide-vue-next'
 import api from '@/services/api'
 import DateInputPersian from '@/components/DateInputPersian.vue'
 import { formatDate } from '@/utils/date'
@@ -91,6 +91,68 @@ const tasksCountByGoal = (goalId) => {
 const completedTasksByGoal = (goalId) => {
   return allTasks.value.filter(t => t.goal_id === goalId && t.is_completed).length
 }
+
+// 📊 تفکیک اهداف بر اساس درصد پیشرفت واقعی
+const goalsByProgress = computed(() => {
+  const buckets = {
+    completed: { label: 'تکمیل‌شده (۱۰۰٪)', goals: [], color: '#10b981' },   // سبز
+    active:    { label: 'در جریان (۱-۹۹٪)', goals: [], color: '#f59e0b' },    // طلایی
+    planning:  { label: 'فقط برنامه‌ریزی (۰٪)', goals: [], color: '#6366f1' }, // بنفش
+  }
+  goals.value.forEach(g => {
+    const p = progressByGoal(g.id)
+    if (p >= 100) buckets.completed.goals.push(g)
+    else if (p > 0) buckets.active.goals.push(g)
+    else buckets.planning.goals.push(g)
+  })
+  return buckets
+})
+
+// محاسبه درصد برای Donut
+const donutSegments = computed(() => {
+  const segs = []
+  const total = goals.value.length
+  if (total === 0) return segs
+  let offset = 0
+  Object.values(goalsByProgress.value).forEach(b => {
+    const pct = (b.goals.length / total) * 100
+    if (pct > 0) {
+      segs.push({ ...b, percent: pct, offset })
+      offset += pct
+    }
+  })
+  return segs
+})
+
+// 📅 Timeline: تسک‌های ۳۰ روز آینده (سررسید نزدیک)
+const upcomingTasks = computed(() => {
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  const future = new Date(now)
+  future.setDate(future.getDate() + 30)
+  const futureISO = future.toISOString().split('T')[0]
+  return allTasks.value
+    .filter(t => !t.is_completed && t.due_date)
+    .map(t => ({ ...t, dueDateStr: String(t.due_date).split('T')[0] }))
+    .filter(t => t.dueDateStr >= today && t.dueDateStr <= futureISO)
+    .sort((a, b) => a.dueDateStr.localeCompare(b.dueDateStr))
+    .slice(0, 10)
+})
+
+// 🚀 Quick action: مستقیم به صفحه تسک جدید (با goal context)
+const quickAddTask = (goalId) => {
+  router.push({ path: '/tasks', query: { goal: goalId, add: '1' } })
+}
+
+// 💡 Smart suggestion: پیشنهاد از next_step فیلد goal (اگه پر باشه)
+const smartSuggestion = computed(() => {
+  // اولویت: goals که next_step دارن و پیشرفت < 50٪
+  const candidates = goals.value
+    .filter(g => g.next_step && g.next_step.trim() && progressByGoal(g.id) < 50)
+    .sort((a, b) => progressByGoal(a.id) - progressByGoal(b.id))  // کمترین پیشرفت اول
+  if (candidates.length === 0) return null
+  return candidates[0]
+})
 
 const fetchLogs = async () => {
   try {
@@ -240,6 +302,100 @@ onMounted(() => {
     <!-- ذرات رباتیک -->
     <div v-if="themeStore.currentTheme === 'cyber-digital'" class="particles">
       <div v-for="i in 15" :key="i" class="particle" :style="{ left: Math.random() * 100 + '%', animationDelay: Math.random() * 4 + 's' }"></div>
+    </div>
+
+    <!-- 📊 نمودار Donut: تفکیک اهداف بر اساس پیشرفت -->
+    <div v-if="goals.length > 0" class="glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 mb-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 items-center">
+        <!-- Donut SVG -->
+        <div class="flex flex-col items-center">
+          <h3 class="text-sm sm:text-base font-black mb-3 flex items-center gap-2">
+            <PieChart class="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+            تفکیک پیشرفت اهداف ({{ goals.length }} هدف)
+          </h3>
+          <div class="relative w-36 h-36 sm:w-44 sm:h-44">
+            <svg viewBox="0 0 36 36" class="w-full h-full -rotate-90">
+              <circle cx="18" cy="18" r="15.9155" fill="transparent" stroke="rgba(255,255,255,0.05)" stroke-width="3" />
+              <circle v-for="(seg, i) in donutSegments" :key="i"
+                      cx="18" cy="18" r="15.9155" fill="transparent"
+                      :stroke="seg.color"
+                      stroke-width="3"
+                      :stroke-dasharray="`${seg.percent} ${100 - seg.percent}`"
+                      :stroke-dashoffset="-seg.offset"
+                      class="transition-all duration-500" />
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <p class="text-[10px] opacity-60">تعداد کل</p>
+              <p class="text-2xl font-black">{{ goals.length }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- لژند + آمار -->
+        <div class="space-y-3">
+          <div v-for="(seg, i) in donutSegments" :key="i"
+               class="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-white/5 border border-white/5">
+            <div class="w-3 h-3 sm:w-4 sm:h-4 rounded-sm flex-shrink-0" :style="{ background: seg.color }"></div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs sm:text-sm font-bold truncate">{{ seg.label }}</p>
+              <p class="text-[10px] sm:text-xs opacity-60">{{ seg.goals.length }} هدف</p>
+            </div>
+            <p class="font-black text-sm sm:text-base" :style="{ color: seg.color }">{{ Math.round(seg.percent) }}٪</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 📅 Timeline: تسک‌های پیش‌رو (۳۰ روز آینده) -->
+    <div v-if="upcomingTasks.length > 0" class="glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 mb-5">
+      <h3 class="text-sm sm:text-base font-black mb-3 flex items-center gap-2">
+        <Calendar class="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+        سررسیدهای پیش‌رو ({{ upcomingTasks.length }} تسک)
+      </h3>
+      <div class="space-y-2">
+        <div v-for="t in upcomingTasks" :key="t.id"
+             class="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition">
+          <!-- دایره رنگی بر اساس فوریت -->
+          <div class="w-2 h-2 rounded-full flex-shrink-0"
+               :class="{
+                 'bg-red-500': new Date(t.dueDateStr) - new Date() < 3*24*60*60*1000,
+                 'bg-amber-500': new Date(t.dueDateStr) - new Date() < 7*24*60*60*1000,
+                 'bg-blue-500': true
+               }"></div>
+          <!-- عنوان تسک -->
+          <div class="flex-1 min-w-0">
+            <p class="text-xs sm:text-sm font-bold truncate">{{ t.title }}</p>
+            <p class="text-[10px] sm:text-xs opacity-60 truncate">
+              {{ goals.find(g => g.id === t.goal_id)?.title || 'بدون هدف' }}
+            </p>
+          </div>
+          <!-- تاریخ سررسید -->
+          <div class="text-left flex-shrink-0">
+            <p class="text-[10px] sm:text-xs font-bold text-amber-300" dir="ltr">{{ t.dueDateStr }}</p>
+            <p class="text-[9px] sm:text-[10px] opacity-50">سررسید</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 💡 Smart Suggestion -->
+    <div v-if="smartSuggestion" class="glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-amber-500/30 bg-amber-500/5 mb-5">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+          <Sparkles class="w-5 h-5 sm:w-6 sm:h-6" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[10px] sm:text-xs font-black opacity-60 mb-1">💡 پیشنهاد هوشمند بعدی</p>
+          <p class="text-sm sm:text-base font-bold mb-1 truncate">{{ smartSuggestion.title }}</p>
+          <p class="text-xs sm:text-sm leading-relaxed text-amber-200/90 line-clamp-2">{{ smartSuggestion.next_step }}</p>
+          <div class="flex items-center gap-2 mt-2">
+            <button @click="quickAddTask(smartSuggestion.id)" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-[10px] sm:text-xs flex items-center gap-1">
+              <Plus class="w-3 h-3" /> افزودن تسک
+            </button>
+            <span class="text-[10px] opacity-50">پیشرفت فعلی: {{ progressByGoal(smartSuggestion.id) }}٪</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Toast Message -->
@@ -498,6 +654,13 @@ onMounted(() => {
                   class="px-3 py-1.5 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1.5">
             <ListTodo class="w-3.5 h-3.5 text-emerald-400" />
             <span>{{ completedTasksByGoal(goal.id) }}/{{ tasksCountByGoal(goal.id) }} تسک</span>
+          </button>
+
+          <!-- 🚀 Quick add تسک جدید به این هدف -->
+          <button @click="quickAddTask(goal.id)"
+                  class="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-600/80 hover:bg-emerald-500 text-white transition flex items-center gap-1"
+                  title="افزودن سریع تسک جدید به این هدف">
+            <Plus class="w-3.5 h-3.5" />
           </button>
         </div>
 

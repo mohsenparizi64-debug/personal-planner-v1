@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { 
   Plus, Trash2, Edit3, Check, Filter, Search, List, 
-  Calendar, RefreshCw, AlertTriangle, Eye, ArrowRight, Sparkles, Tag, Target, Flag, Clock, Layers, CheckCircle2,
+  Calendar, RefreshCw, AlertTriangle, Eye, ArrowRight, Sparkles, Tag, Target, Flag, Clock, Layers, CheckCircle2, BarChart2,
   Type, Sun, Moon, HelpCircle, BookOpen, Info, CheckSquare, X, Zap
 } from 'lucide-vue-next'
 import api from '@/services/api'
@@ -19,6 +19,10 @@ const tasks = ref([])
 const goals = ref([])
 const subGoals = ref([])
 const categories = ref([])
+
+// 📊 حالت نمودار تحلیلی
+const showChart = ref(true)  // نمایش/مخفی‌سازی نمودار هفتگی
+const chartRange = ref(7)   // 7 | 30 روز
 const showTaskModal = ref(false)
 const showHelpModal = ref(false)
 const editingTask = ref(null)
@@ -69,6 +73,51 @@ const toEngNums = (str) => {
     .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧۸٩'.indexOf(d))
     .replace(/\//g, '-')
 }
+
+// 📊 آمار کلی تسک‌ها (برای نمودار)
+const taskStats = computed(() => {
+  const total = tasks.value.length
+  const completed = tasks.value.filter(t => t.is_completed).length
+  const overdue = tasks.value.filter(t => isTaskOverdue(t)).length
+  const today = tasks.value.filter(t => isToday(t)).length
+  const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
+  return { total, completed, overdue, today, completionRate }
+})
+
+// 📊 داده‌های نمودار میله‌ای (روزانه، برای N روز گذشته)
+const chartData = computed(() => {
+  const days = chartRange.value
+  const buckets = []
+  const now = new Date()
+  const persianWeekDays = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now)
+    d.setDate(d.getDate() - i)
+    const iso = d.toISOString().split('T')[0]
+    // نام روز: اگه هفته جاری باشه، نام فارسی روز؛ وگنه فقط شماره روز
+    const wd = d.getDay() // 0=Sun, 5=Sat
+    const persianDayIdx = (wd + 1) % 7 // تبدیل به ایندکس فارسی (شنبه=0)
+    const dayLabel = days === 7 ? persianWeekDays[persianDayIdx] : String(d.getDate())
+
+    const dayTasks = tasks.value.filter(t => {
+      const td = t.due_date ? String(t.due_date).split('T')[0] : ''
+      return td === iso
+    })
+    const completed = dayTasks.filter(t => t.is_completed).length
+    const created = tasks.value.filter(t => {
+      const rd = t.register_date ? String(t.register_date).split('T')[0] : ''
+      return rd === iso
+    }).length
+    buckets.push({ date: iso, dayLabel, total: dayTasks.length, completed, created })
+  }
+  return buckets
+})
+
+const maxChartValue = computed(() => {
+  const m = Math.max(1, ...chartData.value.map(d => Math.max(d.total, d.created)))
+  return m
+})
 
 // بررسی تعلق تسک به کارهای امروز
 const isToday = (task) => {
@@ -396,6 +445,10 @@ onMounted(async () => {
         const sId = Number(route.query.sub)
         if (!isNaN(sId)) filterSubGoalId.value = sId
       }
+      // 🚀 اگه add=1 بود، مودال افزودن تسک رو خودکار باز کن
+      if (route.query.add === '1') {
+        setTimeout(() => openNewForm(), 100)  // کمی صبر تا filterGoalId اعمال شه
+      }
     }
   }
 })
@@ -462,6 +515,92 @@ onMounted(async () => {
       <button @click="applyTabFilter('recurring')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'recurring' ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">🔄 تسک‌های دوره‌ای</button>
       <button @click="applyTabFilter('simple')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'simple' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">📌 تسک‌های ساده</button>
       <button @click="applyTabFilter('completed')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'completed' ? 'bg-gray-600 text-white shadow-lg' : 'bg-white/5 text-gray-300 hover:bg-white/10']">✅ تکمیل‌شده‌ها</button>
+    </div>
+
+    <!-- 📊 نمودار تحلیلی فعالیت + ۴ کارت KPI -->
+    <div v-if="showChart" class="glass-card p-4 sm:p-5 rounded-2xl md:rounded-3xl border border-white/10 mb-5 animate-in fade-in duration-200">
+      <!-- ۴ کارت KPI -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-4">
+        <div class="p-2.5 sm:p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center gap-2 sm:gap-3">
+          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0">
+            <ListTodo class="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-[9px] sm:text-[10px] opacity-60 font-bold">کل تسک‌ها</p>
+            <p class="text-sm sm:text-lg font-black text-blue-300 truncate">{{ taskStats.total }}</p>
+          </div>
+        </div>
+        <div class="p-2.5 sm:p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 sm:gap-3">
+          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 class="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-[9px] sm:text-[10px] opacity-60 font-bold">تکمیل‌شده</p>
+            <p class="text-sm sm:text-lg font-black text-emerald-300 truncate">{{ taskStats.completed }}</p>
+          </div>
+        </div>
+        <div class="p-2.5 sm:p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 sm:gap-3">
+          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+            <Clock class="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-[9px] sm:text-[10px] opacity-60 font-bold">امروز</p>
+            <p class="text-sm sm:text-lg font-black text-amber-300 truncate">{{ taskStats.today }}</p>
+          </div>
+        </div>
+        <div class="p-2.5 sm:p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2 sm:gap-3">
+          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle class="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-[9px] sm:text-[10px] opacity-60 font-bold">عقب‌افتاده</p>
+            <p class="text-sm sm:text-lg font-black text-red-300 truncate">{{ taskStats.overdue }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- عنوان نمودار + سوییچر بازه -->
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-xs sm:text-sm font-black flex items-center gap-2">
+          <BarChart2 class="w-4 h-4 text-purple-400" />
+          <span>نمودار {{ chartRange === 7 ? 'هفتگی' : 'ماهانه' }} تسک‌ها</span>
+        </h3>
+        <div class="flex items-center gap-1 p-0.5 bg-black/40 rounded-lg border border-white/10">
+          <button @click="chartRange = 7" class="px-2.5 py-1 rounded text-[10px] sm:text-xs font-bold transition"
+                  :style="chartRange === 7 ? { background: '#9333ea', color: '#fff' } : { color: 'rgba(255,255,255,0.6)' }">۷ روز</button>
+          <button @click="chartRange = 30" class="px-2.5 py-1 rounded text-[10px] sm:text-xs font-bold transition"
+                  :style="chartRange === 30 ? { background: '#9333ea', color: '#fff' } : { color: 'rgba(255,255,255,0.6)' }">۳۰ روز</button>
+        </div>
+      </div>
+
+      <!-- نمودار میله‌ای -->
+      <div class="flex items-end gap-1 h-28 sm:h-32" dir="rtl">
+        <div v-for="(b, i) in chartData" :key="b.date" class="flex-1 flex flex-col items-center justify-end gap-0.5 min-w-0">
+          <!-- تعداد بالای میله -->
+          <span v-if="b.total > 0" class="text-[8px] sm:text-[9px] font-bold text-blue-300">{{ b.total }}</span>
+          <span v-else class="text-[8px] sm:text-[9px] opacity-20">·</span>
+          <!-- میله‌ها (due + register) -->
+          <div class="w-full flex flex-col items-stretch overflow-hidden rounded-t gap-px"
+               :style="{ height: Math.max(2, (Math.max(b.total, b.created) / maxChartValue) * 100) + '%' }">
+            <div v-if="b.total > 0"
+                 class="w-full bg-gradient-to-t from-blue-700 to-blue-400"
+                 :style="{ height: maxChartValue > 0 ? Math.max(20, (b.total / maxChartValue) * 100) + '%' : '0%' }"
+                 :title="`${b.date} - سررسید: ${b.total} (${b.completed} تکمیل)`"></div>
+            <div v-if="b.created > b.total"
+                 class="w-full bg-gradient-to-t from-purple-700/60 to-purple-400/60"
+                 :style="{ height: maxChartValue > 0 ? Math.max(20, ((b.created - b.total) / maxChartValue) * 100) + '%' : '0%' }"
+                 :title="`${b.date} - ثبت: ${b.created}`"></div>
+          </div>
+          <!-- برچسب روز -->
+          <span class="text-[8px] sm:text-[9px] opacity-50 truncate w-full text-center">{{ b.dayLabel }}</span>
+        </div>
+      </div>
+
+      <!-- راهنما -->
+      <div class="flex items-center justify-center gap-4 mt-3 pt-2 border-t border-white/5 text-[10px] opacity-70">
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-blue-500"></span> سررسید روز</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-purple-500/60"></span> ثبت‌شده</span>
+      </div>
     </div>
 
     <!-- 🔍 کادر فیلترهای پیشرفته با تمامی امکانات -->
