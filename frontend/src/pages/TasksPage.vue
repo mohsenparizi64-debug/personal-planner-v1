@@ -1,16 +1,17 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { 
   Plus, Trash2, Edit3, Check, Filter, Search, List, 
   Calendar, RefreshCw, AlertTriangle, Eye, ArrowRight, Sparkles, Tag, Target, Flag, Clock, Layers, CheckCircle2, BarChart2,
-  Type, Sun, Moon, HelpCircle, BookOpen, Info, CheckSquare, X, Zap
+  Type, Sun, Moon, HelpCircle, BookOpen, Info, CheckSquare, X, Zap,
+  RotateCw, Repeat, Circle
 } from 'lucide-vue-next'
 import api from '@/services/api'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import DateInputPersian from '@/components/DateInputPersian.vue'
-import { formatDate } from '@/utils/date'
+import { formatDate, toGregorianISO } from '@/utils/date'
 
 const themeStore = useThemeStore()
 const route = useRoute()
@@ -40,7 +41,7 @@ const fontColorMode = ref('bright')
 
 const showAllTasks = ref(true)
 const showFilters = ref(true)
-const quickTab = ref('all') // all, today, overdue, recurring, simple, completed
+const quickTab = ref('all') // all, today, overdue, extended, recurring, simple, completed
 
 const filterSearch = ref('')
 const filterCategory = ref('')
@@ -52,12 +53,22 @@ const filterRecurrence = ref('')
 const filterDueDateFrom = ref('')
 const filterDueDateTo = ref('')
 
+// 🆕 helper: تاریخ امروز به فرمت ISO میلادی بر اساس timezone محلی (نه UTC)
+const getTodayISOLocal = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const form = ref({
-  title: '', description: '', register_date: new Date().toISOString().split('T')[0],
+  title: '', description: '', register_date: getTodayISOLocal(),
   duration_days: null, category: '', sub_goal_id: null, goal_id: null,
-  last_action_date: new Date().toISOString().split('T')[0], status: 'not_started',
+  last_action_date: getTodayISOLocal(), status: 'not_started',
   recurrence_type: 'none', recurrence_interval: 1, recurrence_end_date: '',
-  is_infinite_recurrence: true, priority: 0, auto_reschedule: true
+  is_infinite_recurrence: true, priority: 0, auto_reschedule: true,
+  suggested_due_date: null  // 🆕 تاریخ پیشنهادی برای تمدید
 })
 
 const statusLabels = { 'not_started': 'شروع نشده', 'in_progress': 'در حال انجام', 'completed': 'تکمیل', 'on_hold': 'متوقف', 'cancelled': 'لغو شده' }
@@ -74,7 +85,7 @@ const toEngNums = (str) => {
     .replace(/\//g, '-')
 }
 
-// 📊 آمار کلی تسک‌ها (برای نمودار)
+// 📊 آمار کلی کارها (برای نمودار)
 const taskStats = computed(() => {
   const total = tasks.value.length
   const completed = tasks.value.filter(t => t.is_completed).length
@@ -84,32 +95,53 @@ const taskStats = computed(() => {
   return { total, completed, overdue, today, completionRate }
 })
 
-// 📊 داده‌های نمودار میله‌ای (روزانه، برای N روز گذشته)
+// 📊 داده‌های نمودار میله‌ای (فیکس شده: شنبه در سمت راست، جمعه در سمت چپ)
 const chartData = computed(() => {
   const days = chartRange.value
   const buckets = []
   const now = new Date()
   const persianWeekDays = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
 
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    const iso = d.toISOString().split('T')[0]
-    // نام روز: اگه هفته جاری باشه، نام فارسی روز؛ وگنه فقط شماره روز
-    const wd = d.getDay() // 0=Sun, 5=Sat
-    const persianDayIdx = (wd + 1) % 7 // تبدیل به ایندکس فارسی (شنبه=0)
+  // محاسبه آخرین شنبه (شروع هفته جاری)
+  const todayWd = now.getDay() // 0=Sun..6=Sat
+  // فاصله روز جاری تا آخرین شنبه (Sat=6 → 0)
+  const daysSinceSat = (todayWd + 1) % 7
+  // برای days=7: شروع از شنبه همین هفته
+  // برای days=30: 23 روز قبل‌تر (4 هفته + 2 روز)
+  const startOffset = daysSinceSat + (days - 7)
+
+  const startDate = new Date(now)
+  startDate.setDate(startDate.getDate() - startOffset)
+  const todayISO = getTodayISOLocal()
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate)
+    d.setDate(d.getDate() + i)
+    // استفاده از تاریخ محلی (نه UTC) برای سازگاری با timezone
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const wd = d.getDay()
+    const persianDayIdx = (wd + 1) % 7
     const dayLabel = days === 7 ? persianWeekDays[persianDayIdx] : String(d.getDate())
 
     const dayTasks = tasks.value.filter(t => {
       const td = t.due_date ? String(t.due_date).split('T')[0] : ''
       return td === iso
     })
+
     const completed = dayTasks.filter(t => t.is_completed).length
     const created = tasks.value.filter(t => {
       const rd = t.register_date ? String(t.register_date).split('T')[0] : ''
       return rd === iso
     }).length
-    buckets.push({ date: iso, dayLabel, total: dayTasks.length, completed, created })
+
+    buckets.push({
+      date: iso,
+      dayLabel,
+      isToday: iso === todayISO,
+      total: dayTasks.length,
+      completed,
+      created
+    })
   }
   return buckets
 })
@@ -119,30 +151,30 @@ const maxChartValue = computed(() => {
   return m
 })
 
-// بررسی تعلق تسک به کارهای امروز
+// بررسی تعلق کار به کارهای امروز
 const isToday = (task) => {
   if (!task) return false
-  const now = new Date()
-  const todayISO = now.toISOString().split('T')[0]
-  const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-
+  const todayLocal = getTodayISOLocal()
+  // پشتیبانی از هر دو فرمت: ISO با T (مثل 2026-09-04T00:00:00) و فرمت ساده
   const d = task.due_date ? String(task.due_date).split('T')[0] : ''
   const r = task.register_date ? String(task.register_date).split('T')[0] : ''
   const l = task.last_action_date ? String(task.last_action_date).split('T')[0] : ''
 
-  return (
-    d === todayISO || d === localToday ||
-    r === todayISO || r === localToday ||
-    l === todayISO || l === localToday
-  )
+  return d === todayLocal || r === todayLocal || l === todayLocal
 }
 
-// بررسی تسک دوره‌ای
+// بررسی کار دوره‌ای
 const isTaskRecurring = (task) => {
   return Boolean(task.recurrence_type && task.recurrence_type !== 'none')
 }
 
-// 🗓️ محاسبه تاریخ اقدام / مهلت بعدی تسک
+// 🏷️ برچسب فارسی نوع تکرار
+const recurrenceLabel = (type) => {
+  const map = { daily: 'روزانه', weekly: 'هفتگی', monthly: 'ماهانه', yearly: 'سالانه' }
+  return map[type] || 'دوره‌ای'
+}
+
+// 🗓️ محاسبه تاریخ اقدام / مهلت بعدی کار
 const getNextActionDate = (task) => {
   if (!task) return 'تعیین نشده'
   if (!task.due_date && !task.last_action_date && !task.register_date) return 'تعیین نشده'
@@ -155,24 +187,79 @@ const getNextActionDate = (task) => {
     else if (task.recurrence_type === 'weekly') baseDate.setDate(baseDate.getDate() + (interval * 7))
     else if (task.recurrence_type === 'monthly') baseDate.setMonth(baseDate.getMonth() + interval)
     else if (task.recurrence_type === 'yearly') baseDate.setFullYear(baseDate.getFullYear() + interval)
-    
-    return formatDate(baseDate.toISOString().split('T')[0])
+
+    // استفاده از تاریخ محلی (نه UTC) برای سازگاری با timezone
+    const localISO = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`
+    return formatDate(localISO)
   }
-  
+
   return formatDate(task.due_date || task.register_date || task.last_action_date)
 }
 
-// 🚨 بررسی هوشمند و قطعی تسک عقب‌افتاده
+// 🚦 تشخیص وضعیت کار برای تعیین رنگ/برچسب (سلسله‌مراتبی)
+// 1) completed | 2) today (اگر تاریخ پیشنهادی == امروز، اولویت با today دارد) | 3) extended | 4) overdue | 5) pending
+const getTaskStatus = (task) => {
+  if (!task) return 'pending'
+  if (task.is_completed || task.status === 'completed') return 'completed'
+
+  // تاریخ امروز به فرمت ISO محلی (نه UTC) - برای سازگاری با timezone کاربر
+  const todayISO = getTodayISOLocal()
+
+  // 🆕 اولویت ۱: اگر تاریخ پیشنهادی == امروز → امروز (حتی اگر اقدام بعدی عقب‌افتاده باشد)
+  if (task.suggested_due_date) {
+    const sugISO = String(task.suggested_due_date).split('T')[0]
+    if (sugISO === todayISO) return 'today'
+  }
+
+  // اولویت ۲: اگر تاریخ اقدام بعدی == امروز → امروز
+  if (isToday(task)) return 'today'
+
+  // محاسبه تاریخ اقدام بعدی
+  const nextISO = computeNextActionDateISO(task)
+
+  // اگر تاریخ اقدام بعدی قبل از امروز است → عقب‌افتاده
+  if (nextISO && nextISO < todayISO) {
+    // اگر تاریخ پیشنهادی تنظیم شده و هنوز نگذشته → تمدید شده
+    if (task.suggested_due_date) {
+      const sugISO = String(task.suggested_due_date).split('T')[0]
+      if (sugISO > todayISO) return 'extended'
+    }
+    return 'overdue'
+  }
+  return 'pending'
+}
+
+// 🚨 بررسی هوشمند و قطعی کار عقب‌افتاده (از تاریخ اقدام بعدی محاسبه‌شده)
 const isTaskOverdue = (task) => {
+  if (!task) return false
   if (task.is_completed || task.status === 'completed') return false
   if (isToday(task)) return false
 
-  const now = new Date()
-  const todayISO = now.toISOString().split('T')[0]
-  const taskDue = task.due_date ? String(task.due_date).split('T')[0] : ''
+  // تاریخ اقدام بعدی (همان منطق getNextActionDate)
+  const nextDateStr = computeNextActionDateISO(task)
+  if (!nextDateStr) return false
 
-  if (!taskDue) return false
-  return taskDue < todayISO
+  const todayISO = getTodayISOLocal()
+  return nextDateStr < todayISO
+}
+
+// 🗓️ محاسبه تاریخ اقدام بعدی به فرمت ISO (بدون تبدیل شمسی) - منبع مشترک
+const computeNextActionDateISO = (task) => {
+  if (!task) return ''
+  // helper: تبدیل شیء Date به ISO محلی
+  const toLocalISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  // برای کار دوره‌ای: last_action_date + فاصله تکرار
+  if (isTaskRecurring(task) && (task.is_completed || task.status === 'completed')) {
+    const baseDate = task.last_action_date ? new Date(task.last_action_date) : new Date()
+    const interval = Number(task.recurrence_interval) || 1
+    if (task.recurrence_type === 'daily') baseDate.setDate(baseDate.getDate() + interval)
+    else if (task.recurrence_type === 'weekly') baseDate.setDate(baseDate.getDate() + (interval * 7))
+    else if (task.recurrence_type === 'monthly') baseDate.setMonth(baseDate.getMonth() + interval)
+    else if (task.recurrence_type === 'yearly') baseDate.setFullYear(baseDate.getFullYear() + interval)
+    return toLocalISO(baseDate)
+  }
+  // برای همه کارها: اولویت due_date > register_date > last_action_date
+  return (task.due_date || task.register_date || task.last_action_date || '').toString().split('T')[0]
 }
 
 // 🔤 محاسبه کلاس‌های اندازه فونت پویا
@@ -226,7 +313,67 @@ const fontColorClasses = computed(() => {
 })
 
 const selectTaskForFocus = (task) => { selectedTask.value = task }
-const closeTaskFocus = () => { selectedTask.value = null }
+const closeTaskFocus = () => { selectedTask.value = null; focusSuggestedDate.value = null }
+
+// 🆕 تاریخ پیشنهادی برای تمدید (ویرایش از حالت تمرکز)
+const focusSuggestedDate = ref(null)
+const focusEditingSuggested = ref(false)
+
+watch(selectedTask, (t) => {
+  if (t) {
+    focusSuggestedDate.value = t.suggested_due_date || null
+    focusEditingSuggested.value = false
+  }
+})
+
+// 🆕 ذخیره تاریخ پیشنهادی از داخل حالت تمرکز
+const saveSuggestedFromFocus = async () => {
+  if (!selectedTask.value) return
+
+  // تبدیل تاریخ شمسی به میلادی در صورت نیاز
+  let valueToSave = focusSuggestedDate.value
+  if (valueToSave && typeof valueToSave === 'string') {
+    // اگر شبیه تاریخ شمسی است (مثل "۱۴۰۵/۰۶/۱۴" یا "1405/06/14")
+    if (/[۰-۹]/.test(valueToSave) || /^\d{4}\/\d{2}\/\d{2}$/.test(valueToSave)) {
+      const iso = toGregorianISO(valueToSave)
+      if (iso) valueToSave = iso
+    }
+  }
+  // اگر خالی است، null ذخیره شود
+  if (!valueToSave || (typeof valueToSave === 'string' && !valueToSave.trim())) {
+    valueToSave = null
+  }
+
+  try {
+    isLoading.value = true
+    await api.put(`/tasks/${selectedTask.value.id}`, { suggested_due_date: valueToSave })
+
+    // به‌روزرسانی selectedTask (با ایجاد شیء جدید برای اطمینان از reactivity)
+    const updatedSelected = { ...selectedTask.value, suggested_due_date: valueToSave }
+    selectedTask.value = updatedSelected
+
+    // به‌روزرسانی لیست اصلی (با ایجاد آرایه جدید برای اطمینان از reactivity)
+    const idx = tasks.value.findIndex(t => t.id === updatedSelected.id)
+    if (idx !== -1) {
+      const newTasks = [...tasks.value]
+      newTasks[idx] = { ...newTasks[idx], suggested_due_date: valueToSave }
+      tasks.value = newTasks
+    }
+
+    // هماهنگ‌سازی focusSuggestedDate
+    focusSuggestedDate.value = valueToSave
+    focusEditingSuggested.value = false
+
+    // اجبار به re-render
+    await nextTick()
+
+    showToast('✅ تاریخ پیشنهادی ذخیره شد')
+  } catch (e) {
+    showToast('❌ خطا در ذخیره تاریخ پیشنهادی', 'error')
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const fetchTasks = async () => {
   try {
@@ -237,7 +384,7 @@ const fetchTasks = async () => {
       if (updated) selectedTask.value = updated
     }
   } catch (e) {
-    showToast('⚠️ خطا در بارگذاری تسک‌ها', 'error')
+    showToast('⚠️ خطا در بارگذاری کارها', 'error')
   }
 }
 
@@ -253,6 +400,8 @@ const filteredTasks = computed(() => {
     result = result.filter(t => isToday(t))
   } else if (quickTab.value === 'overdue') {
     result = result.filter(t => isTaskOverdue(t))
+  } else if (quickTab.value === 'extended') {
+    result = result.filter(t => getTaskStatus(t) === 'extended')
   } else if (quickTab.value === 'recurring') {
     result = result.filter(t => isTaskRecurring(t))
   } else if (quickTab.value === 'simple') {
@@ -314,26 +463,27 @@ watch(filterGoalId, (newGoalId) => {
 
 const openNewForm = () => {
   form.value = { 
-    title: '', description: '', register_date: new Date().toISOString().split('T')[0], 
+    title: '', description: '', register_date: getTodayISOLocal(), 
     duration_days: null, category: '', sub_goal_id: null, goal_id: null, 
-    last_action_date: new Date().toISOString().split('T')[0], status: 'not_started', recurrence_type: 'none', 
+    last_action_date: getTodayISOLocal(), status: 'not_started', recurrence_type: 'none', 
     recurrence_interval: 1, recurrence_end_date: '', is_infinite_recurrence: true, priority: 0, auto_reschedule: true 
   }
   editingTask.value = null; subGoals.value = []; validationErrors.value = {}; showTaskModal.value = true
 }
 
 const openEditForm = (task) => {
-  form.value = { 
-    title: task.title, description: task.description || '', 
-    register_date: task.register_date || '', duration_days: task.duration_days || null, 
+  form.value = {
+    title: task.title, description: task.description || '',
+    register_date: task.register_date || '', duration_days: task.duration_days || null,
     due_date: task.due_date || '',
-    category: task.category || '', sub_goal_id: task.sub_goal_id || null, 
-    goal_id: task.goal_id || null, last_action_date: task.last_action_date || new Date().toISOString().split('T')[0], 
-    status: task.status || 'not_started', recurrence_type: task.recurrence_type || 'none', 
-    recurrence_interval: task.recurrence_interval || 1, 
-    recurrence_end_date: task.recurrence_end_date || '', 
+    category: task.category || '', sub_goal_id: task.sub_goal_id || null,
+    goal_id: task.goal_id || null, last_action_date: task.last_action_date || getTodayISOLocal(),
+    status: task.status || 'not_started', recurrence_type: task.recurrence_type || 'none',
+    recurrence_interval: task.recurrence_interval || 1,
+    recurrence_end_date: task.recurrence_end_date || '',
     is_infinite_recurrence: task.is_infinite_recurrence !== undefined ? task.is_infinite_recurrence : true,
-    priority: task.priority ?? 0, auto_reschedule: task.auto_reschedule !== undefined ? task.auto_reschedule : true
+    priority: task.priority ?? 0, auto_reschedule: task.auto_reschedule !== undefined ? task.auto_reschedule : true,
+    suggested_due_date: task.suggested_due_date || null  // 🆕 تاریخ پیشنهادی
   }
   editingTask.value = task; fetchSubGoals(task.goal_id); validationErrors.value = {}; showTaskModal.value = true
 }
@@ -349,16 +499,16 @@ const saveTask = async () => {
 
     if (editingTask.value) {
       await api.put(`/tasks/${editingTask.value.id}`, data)
-      showToast('✅ تسک بروزرسانی شد')
+      showToast('✅ کار بروزرسانی شد')
     } else {
       await api.post('/tasks', data)
-      showToast('✅ تسک جدید ساخته شد')
+      showToast('✅ کار جدید ساخته شد')
     }
     
     // واکشی موازی فوق‌العاده سریع
     await Promise.all([fetchTasks(), fetchGoals()])
   } catch (e) { 
-    showToast('❌ خطا در ذخیره تسک', 'error')
+    showToast('❌ خطا در ذخیره کار', 'error')
     showTaskModal.value = true
   } finally { 
     isLoading.value = false 
@@ -367,7 +517,7 @@ const saveTask = async () => {
 
 const toggleTask = async (task) => {
   try {
-    const today = new Date().toISOString().split('T')[0]
+    const today = getTodayISOLocal()
     const isCurrentlyCompleted = task.is_completed || task.status === 'completed'
     const newCompletedState = !isCurrentlyCompleted
     const newStatus = newCompletedState ? 'completed' : 'not_started'
@@ -384,24 +534,24 @@ const toggleTask = async (task) => {
     })
 
     if (newCompletedState) {
-      showToast(isTaskRecurring(task) ? '🔄 تسک انجام شد و برای موعد بعدی فعال می‌ماند' : '🎉 تسک با موفقیت تکمیل شد')
+      showToast(isTaskRecurring(task) ? '🔄 کار انجام شد و برای موعد بعدی فعال می‌ماند' : '🎉 کار با موفقیت تکمیل شد')
     } else {
-      showToast('🔄 تسک به حالت انجام‌نشده برگشت')
+      showToast('🔄 کار به حالت انجام‌نشده برگشت')
     }
 
     Promise.all([fetchTasks(), fetchGoals()])
   } catch (e) {
-    showToast('❌ خطا در تغییر وضعیت تسک', 'error')
+    showToast('❌ خطا در تغییر وضعیت کار', 'error')
     await fetchTasks()
   }
 }
 
 const deleteTask = async (id) => { 
-  if (!confirm('مطمئنی می‌خوای این تسک رو حذف کنی؟')) return
+  if (!confirm('مطمئنی می‌خوای این کار رو حذف کنی؟')) return
   try { 
     tasks.value = tasks.value.filter(t => t.id !== id)
     if (selectedTask.value && selectedTask.value.id === id) selectedTask.value = null
-    showToast('🗑️ تسک حذف شد')
+    showToast('🗑️ کار حذف شد')
     await api.delete(`/tasks/${id}`)
     Promise.all([fetchTasks(), fetchGoals()])
   } catch (e) {} 
@@ -445,7 +595,7 @@ onMounted(async () => {
         const sId = Number(route.query.sub)
         if (!isNaN(sId)) filterSubGoalId.value = sId
       }
-      // 🚀 اگه add=1 بود، مودال افزودن تسک رو خودکار باز کن
+      // 🚀 اگه add=1 بود، مودال افزودن کار رو خودکار باز کن
       if (route.query.add === '1') {
         setTimeout(() => openNewForm(), 100)  // کمی صبر تا filterGoalId اعمال شه
       }
@@ -464,7 +614,7 @@ onMounted(async () => {
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
       <div>
         <h1 class="text-2xl md:text-3xl lg:text-4xl font-black mb-1 flex items-center gap-2.5 text-white" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''">
-          <ListTodo class="w-7 h-7 md:w-8 md:h-8 text-purple-400" /> اتاق عملیات تسک‌ها
+          <ListTodo class="w-7 h-7 md:w-8 md:h-8 text-purple-400" /> میز کار
         </h1>
         <p :style="{ color: 'var(--text-secondary)' }" class="text-xs md:text-sm font-bold">مدیریت، زمان‌بندی و پایش پیشرفت کارهای روزانه و دوره‌ای</p>
       </div>
@@ -479,20 +629,6 @@ onMounted(async () => {
           <span class="sm:hidden">راهنما</span>
         </button>
 
-        <!-- انتخابگر اندازه فونت -->
-        <div class="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/10 backdrop-blur-md">
-          <Type class="w-3.5 h-3.5 text-purple-400 ml-1 mr-1.5" />
-          <button @click="fontSizeMode = 'small'" class="px-2 py-1 rounded-lg text-[10px] md:text-xs font-black transition" :class="fontSizeMode === 'small' ? 'bg-purple-600 text-white shadow' : 'text-gray-300 hover:bg-white/10'">کوچک</button>
-          <button @click="fontSizeMode = 'standard'" class="px-2 py-1 rounded-lg text-[10px] md:text-xs font-black transition" :class="fontSizeMode === 'standard' ? 'bg-purple-600 text-white shadow' : 'text-gray-300 hover:bg-white/10'">استاندارد</button>
-          <button @click="fontSizeMode = 'large'" class="px-2 py-1 rounded-lg text-[10px] md:text-xs font-black transition" :class="fontSizeMode === 'large' ? 'bg-purple-600 text-white shadow' : 'text-gray-300 hover:bg-white/10'">درشت</button>
-        </div>
-
-        <!-- انتخابگر طیف رنگ فونت -->
-        <div class="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/10 backdrop-blur-md">
-          <button @click="fontColorMode = 'bright'" title="طیف روشن درخشان" class="p-1.5 rounded-lg transition" :class="fontColorMode === 'bright' ? 'bg-amber-500 text-slate-950 shadow' : 'text-gray-300 hover:bg-white/10'"><Sun class="w-4 h-4" /></button>
-          <button @click="fontColorMode = 'dark'" title="طیف تیره با کنتراست بالا" class="p-1.5 rounded-lg transition" :class="fontColorMode === 'dark' ? 'bg-purple-600 text-white shadow' : 'text-gray-300 hover:bg-white/10'"><Moon class="w-4 h-4" /></button>
-        </div>
-
         <button @click="showAllTasks = !showAllTasks" class="px-3 py-2 rounded-xl transition flex items-center gap-1.5 text-xs font-bold" :style="showAllTasks ? { background: 'var(--accent)', color: '#fff' } : { background: 'var(--bg-hover)', color: 'var(--text-secondary)' }">
           <List class="w-4 h-4" /> <span class="hidden sm:inline">{{ showAllTasks ? 'کارتی' : 'فشرده' }}</span>
         </button>
@@ -502,18 +638,19 @@ onMounted(async () => {
         </button>
         
         <button @click="openNewForm" class="px-3.5 py-2 rounded-xl text-white font-black text-xs md:text-sm transition flex items-center gap-1.5 shadow-lg hover:scale-105 active:scale-95" :style="{ background: 'var(--accent)' }">
-          <Plus class="w-4 h-4" /> <span>تسک جدید</span>
+          <Plus class="w-4 h-4" /> <span>کار جدید</span>
         </button>
       </div>
     </div>
 
     <!-- 🌟 تب‌های فیلتر سریع -->
     <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-5 custom-scrollbar">
-      <button @click="applyTabFilter('all')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'all' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">همه تسک‌ها ({{ tasks.length }})</button>
+      <button @click="applyTabFilter('all')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'all' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">همه کارها ({{ tasks.length }})</button>
       <button @click="applyTabFilter('today')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'today' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">☀️ کارهای امروز ({{ tasks.filter(t => isToday(t)).length }})</button>
       <button @click="applyTabFilter('overdue')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'overdue' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 font-black' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20']">🚨 عقب‌افتاده‌ها ({{ tasks.filter(t => isTaskOverdue(t)).length }})</button>
-      <button @click="applyTabFilter('recurring')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'recurring' ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">🔄 تسک‌های دوره‌ای</button>
-      <button @click="applyTabFilter('simple')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'simple' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">📌 تسک‌های ساده</button>
+      <button @click="applyTabFilter('extended')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'extended' ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30 font-black' : 'bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 border border-sky-500/30']">🕐 تمدید شده‌ها ({{ tasks.filter(t => getTaskStatus(t) === 'extended').length }})</button>
+      <button @click="applyTabFilter('recurring')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'recurring' ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">🔄 کارهای دوره‌ای</button>
+      <button @click="applyTabFilter('simple')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'simple' ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30' : 'bg-white/5 text-gray-300 hover:bg-white/10']">📌 کارهای بدون تکرار</button>
       <button @click="applyTabFilter('completed')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'completed' ? 'bg-gray-600 text-white shadow-lg' : 'bg-white/5 text-gray-300 hover:bg-white/10']">✅ تکمیل‌شده‌ها</button>
     </div>
 
@@ -526,7 +663,7 @@ onMounted(async () => {
             <ListTodo class="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div class="min-w-0">
-            <p class="text-[9px] sm:text-[10px] opacity-60 font-bold">کل تسک‌ها</p>
+            <p class="text-[9px] sm:text-[10px] opacity-60 font-bold">کل کارها</p>
             <p class="text-sm sm:text-lg font-black text-blue-300 truncate">{{ taskStats.total }}</p>
           </div>
         </div>
@@ -563,7 +700,7 @@ onMounted(async () => {
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-xs sm:text-sm font-black flex items-center gap-2">
           <BarChart2 class="w-4 h-4 text-purple-400" />
-          <span>نمودار {{ chartRange === 7 ? 'هفتگی' : 'ماهانه' }} تسک‌ها</span>
+          <span>نمودار {{ chartRange === 7 ? 'هفتگی' : 'ماهانه' }} کارها</span>
         </h3>
         <div class="flex items-center gap-1 p-0.5 bg-black/40 rounded-lg border border-white/10">
           <button @click="chartRange = 7" class="px-2.5 py-1 rounded text-[10px] sm:text-xs font-bold transition"
@@ -573,26 +710,33 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- نمودار میله‌ای -->
+      <!-- نمودار میله‌ای (شنبه در سمت راست، جمعه در سمت چپ، روز جاری طلایی) -->
       <div class="flex items-end gap-1 h-28 sm:h-32" dir="rtl">
-        <div v-for="(b, i) in chartData" :key="b.date" class="flex-1 flex flex-col items-center justify-end gap-0.5 min-w-0">
+        <div v-for="(b, i) in chartData" :key="b.date" class="flex-1 flex flex-col items-center justify-end gap-0.5 min-w-0"
+             :class="b.isToday ? 'relative' : ''">
           <!-- تعداد بالای میله -->
-          <span v-if="b.total > 0" class="text-[8px] sm:text-[9px] font-bold text-blue-300">{{ b.total }}</span>
+          <span v-if="b.total > 0" class="text-[8px] sm:text-[9px] font-bold"
+                :class="b.isToday ? 'text-amber-300' : 'text-blue-300'">{{ b.total }}</span>
           <span v-else class="text-[8px] sm:text-[9px] opacity-20">·</span>
           <!-- میله‌ها (due + register) -->
-          <div class="w-full flex flex-col items-stretch overflow-hidden rounded-t gap-px"
-               :style="{ height: Math.max(2, (Math.max(b.total, b.created) / maxChartValue) * 100) + '%' }">
+          <div class="w-full flex flex-col items-stretch overflow-hidden rounded-t gap-px relative"
+               :style="{
+                 height: Math.max(2, (Math.max(b.total, b.created) / maxChartValue) * 100) + '%',
+                 boxShadow: b.isToday ? '0 0 12px rgba(251,191,36,0.5)' : 'none',
+                 background: b.isToday ? 'linear-gradient(180deg, rgba(251,191,36,0.1), transparent)' : 'transparent'
+               }">
             <div v-if="b.total > 0"
-                 class="w-full bg-gradient-to-t from-blue-700 to-blue-400"
+                 :class="b.isToday ? 'bg-gradient-to-t from-amber-700 to-amber-400' : 'bg-gradient-to-t from-blue-700 to-blue-400'"
                  :style="{ height: maxChartValue > 0 ? Math.max(20, (b.total / maxChartValue) * 100) + '%' : '0%' }"
                  :title="`${b.date} - سررسید: ${b.total} (${b.completed} تکمیل)`"></div>
             <div v-if="b.created > b.total"
-                 class="w-full bg-gradient-to-t from-purple-700/60 to-purple-400/60"
+                 :class="b.isToday ? 'bg-gradient-to-t from-amber-700/60 to-amber-400/60' : 'bg-gradient-to-t from-purple-700/60 to-purple-400/60'"
                  :style="{ height: maxChartValue > 0 ? Math.max(20, ((b.created - b.total) / maxChartValue) * 100) + '%' : '0%' }"
                  :title="`${b.date} - ثبت: ${b.created}`"></div>
           </div>
           <!-- برچسب روز -->
-          <span class="text-[8px] sm:text-[9px] opacity-50 truncate w-full text-center">{{ b.dayLabel }}</span>
+          <span class="text-[8px] sm:text-[9px] truncate w-full text-center"
+                :class="b.isToday ? 'text-amber-300 font-black' : 'opacity-50'">{{ b.dayLabel }}</span>
         </div>
       </div>
 
@@ -607,7 +751,7 @@ onMounted(async () => {
     <div v-if="showFilters" class="mb-5 p-4 rounded-2xl space-y-3 glass-card border border-white/10 animate-in fade-in duration-200">
       <div class="relative">
         <Search class="absolute right-3 top-3 w-4 h-4 text-gray-400" />
-        <input v-model="filterSearch" placeholder="جستجو در عنوان و توضیحات تسک‌ها..." class="w-full pr-10 pl-4 py-2.5 rounded-xl text-xs md:text-sm font-bold bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
+        <input v-model="filterSearch" placeholder="جستجو در عنوان و توضیحات کارها..." class="w-full pr-10 pl-4 py-2.5 rounded-xl text-xs md:text-sm font-bold bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
       </div>
 
       <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -626,9 +770,9 @@ onMounted(async () => {
       <!-- فیلترهای بازه تاریخ و تکرار -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-white/5">
         <select v-model="filterRecurrence" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-white/10 text-white outline-none">
-          <option value="">همه تسک‌ها (ساده و دوره‌ای)</option>
-          <option value="has">فقط تسک‌های دوره‌ای</option>
-          <option value="none">فقط تسک‌های یک‌باره/ساده</option>
+          <option value="">همه کارها (بدون تکرار و دوره‌ای)</option>
+          <option value="has">فقط کارهای دوره‌ای</option>
+          <option value="none">فقط کارهای بدون تکرار</option>
         </select>
 
         <div class="space-y-1">
@@ -645,14 +789,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- حالت بدون تسک -->
+    <!-- حالت بدون کار -->
     <div v-if="filteredTasks.length === 0" class="text-center py-16 glass-card rounded-3xl border border-white/10">
       <div class="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 text-purple-400">
         <Search class="w-7 h-7" />
       </div>
-      <p class="text-lg font-black text-white mb-1">{{ tasks.length === 0 ? 'هنوز تسکی ثبت نکرده‌اید!' : 'تسکی با این فیلترها پیدا نشد' }}</p>
-      <p class="text-xs text-gray-400 mb-4">می‌توانید تسک جدیدی برای امروز ایجاد کنید.</p>
-      <button @click="openNewForm" class="px-5 py-2.5 bg-purple-600 text-white font-black rounded-xl text-xs hover:bg-purple-500 transition shadow-lg">ساخت تسک جدید</button>
+      <p class="text-lg font-black text-white mb-1">{{ tasks.length === 0 ? 'هنوز کاری ثبت نکرده‌اید!' : 'کاری با این فیلترها پیدا نشد' }}</p>
+      <p class="text-xs text-gray-400 mb-4">می‌توانید کار جدیدی برای امروز ایجاد کنید.</p>
+      <button @click="openNewForm" class="px-5 py-2.5 bg-purple-600 text-white font-black rounded-xl text-xs hover:bg-purple-500 transition shadow-lg">ساخت کار جدید</button>
     </div>
 
     <!-- 🌟 شبکه ۲ ستونه هوشمند در موبایل (Grid 2 Columns on Mobile) + ۳ ستونه در دسکتاپ -->
@@ -663,73 +807,117 @@ onMounted(async () => {
         @click="selectTaskForFocus(task)"
         class="p-3 sm:p-5 rounded-2xl md:rounded-3xl border-2 transition-all duration-200 hover:shadow-2xl hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between relative group"
         :class="[
-          fontColorClasses.cardBg,
-          isTaskOverdue(task) ? 'border-red-500/80 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.25)]' :
-          (task.is_completed || task.status === 'completed') ? 'border-emerald-500/50 bg-emerald-500/10' :
-          isTaskRecurring(task) ? 'border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.1)]' :
-          fontColorClasses.border
+          // پس‌زمینه کارت بر اساس وضعیت (سلسله‌مراتبی)
+          (task.is_completed || task.status === 'completed') ? 'border-emerald-500/40 bg-emerald-500/12 shadow-[0_0_18px_rgba(16,185,129,0.18)]' :  // یشمی: انجام‌شده
+          getTaskStatus(task) === 'extended' ? 'border-sky-500/50 bg-sky-500/12 shadow-[0_0_15px_rgba(56,189,248,0.18)]' :                            // آسمانی: تمدید شده
+          isTaskOverdue(task) ? 'border-red-500/70 bg-red-500/12 shadow-[0_0_18px_rgba(239,68,68,0.2)]' :                                            // قرمز: عقب‌افتاده
+          isToday(task) ? 'border-amber-500/50 bg-amber-500/12 shadow-[0_0_15px_rgba(245,158,11,0.15)]' :                                             // آفتابی: امروز
+          isTaskRecurring(task) ? 'border-purple-500/40 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.1)]' :                                   // بنفش: دوره‌ای
+          'border-slate-500/30 bg-slate-500/8',                                                                                                    // خاکستری: بدون موعد
         ]"
       >
         <div>
-          <!-- ۴ لیبل بصری رنگی شفاف بالای کارت -->
+          <!-- 🌟 المان اختصاصی نوع کار (بدون تکرار / دوره‌ای) - پررنگ و بزرگ -->
+          <div v-if="isTaskRecurring(task)" class="mb-2.5 -mt-1">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-black shadow-md"
+                 :style="{
+                   background: themeStore.currentTheme === 'light-2026' ? 'linear-gradient(135deg, #ede9fe, #ddd6fe)' : 'linear-gradient(135deg, rgba(168,85,247,0.25), rgba(99,102,241,0.2))',
+                   color: themeStore.currentTheme === 'light-2026' ? '#5b21b6' : '#e9d5ff',
+                   border: themeStore.currentTheme === 'light-2026' ? '1px solid #7c3aed' : '1px solid rgba(168,85,247,0.5)',
+                   boxShadow: '0 0 12px rgba(168,85,247,0.2)'
+                 }">
+              <RotateCw class="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" style="animation-duration: 6s;" />
+              <span>کار دوره‌ای</span>
+              <span class="opacity-60 text-[9px] sm:text-[10px]">•</span>
+              <span class="opacity-90">{{ recurrenceLabel(task.recurrence_type) }}</span>
+            </div>
+          </div>
+          <div v-else class="mb-2 -mt-1">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-black shadow-sm"
+                 :style="{
+                   background: themeStore.currentTheme === 'light-2026' ? 'linear-gradient(135deg, #cffafe, #a5f3fc)' : 'linear-gradient(135deg, rgba(34,211,238,0.2), rgba(14,165,233,0.15))',
+                   color: themeStore.currentTheme === 'light-2026' ? '#0e7490' : '#67e8f9',
+                   border: themeStore.currentTheme === 'light-2026' ? '1px solid #0891b2' : '1px solid rgba(34,211,238,0.5)'
+                 }">
+              <Circle class="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
+              <span>کار بدون تکرار</span>
+            </div>
+          </div>
+
+          <!-- ۵ لیبل بصری رنگی شفاف بالای کارت (با رنگ‌بندی بهبودیافته برای خوانایی در همه تم‌ها) -->
           <div class="flex items-center justify-between gap-1 mb-2">
             <div class="flex items-center gap-1 flex-wrap">
-              <!-- ۱. قرمز: عقب‌افتاده -->
-              <span v-if="isTaskOverdue(task)" class="rounded-lg bg-red-500/30 text-red-300 border border-red-500/50 flex items-center gap-0.5 font-black" :class="fontSizeClasses.badge">
+              <!-- ۱. قرمز: عقب‌افتاده - متن سفید خوانا روی پس‌زمینه قرمز -->
+              <span v-if="getTaskStatus(task) === 'overdue'" class="rounded-lg bg-red-500/40 text-white border border-red-300/60 flex items-center gap-0.5 font-black shadow-sm" :class="fontSizeClasses.badge">
                 <AlertTriangle class="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-bounce" /> <span>عقب‌افتاده</span>
               </span>
 
-              <!-- ۲. سبز: انجام‌شده -->
-              <span v-else-if="task.is_completed || task.status === 'completed'" class="rounded-lg bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 flex items-center gap-0.5 font-black" :class="fontSizeClasses.badge">
+              <!-- ۲. سبز: انجام‌شده - متن سفید خوانا روی پس‌زمینه یشمی -->
+              <span v-else-if="task.is_completed || task.status === 'completed'" class="rounded-lg bg-emerald-500/40 text-white border border-emerald-300/60 flex items-center gap-0.5 font-black shadow-sm" :class="fontSizeClasses.badge">
                 <CheckCircle2 class="w-2.5 h-2.5 sm:w-3 sm:h-3" /> <span>انجام شد</span>
               </span>
 
-              <!-- ۳. زرد: کارهای امروز -->
-              <span v-else-if="isToday(task)" class="rounded-lg bg-amber-500/30 text-amber-300 border border-amber-500/50 flex items-center gap-0.5 font-black" :class="fontSizeClasses.badge">
-                <Zap class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-300" /> <span>امروز</span>
+              <!-- ۳. زرد: کارهای امروز - متن تیره روی پس‌زمینه زرد روشن -->
+              <span v-else-if="isToday(task)" class="rounded-lg bg-amber-300/50 text-amber-950 border border-amber-400/70 flex items-center gap-0.5 font-black shadow-sm" :class="fontSizeClasses.badge">
+                <Zap class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-700" /> <span>امروز</span>
               </span>
 
-              <!-- ۴. آبی: در انتظار موعد -->
-              <span v-else class="rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-0.5 font-black" :class="fontSizeClasses.badge">
+              <!-- ۴. آسمانی: تمدید شده - متن سفید روی پس‌زمینه sky -->
+              <span v-else-if="getTaskStatus(task) === 'extended'" class="rounded-lg bg-sky-500/40 text-white border border-sky-300/60 flex items-center gap-0.5 font-black shadow-sm" :class="fontSizeClasses.badge">
+                <Clock class="w-2.5 h-2.5 sm:w-3 sm:h-3" /> <span>تمدید شده</span>
+              </span>
+
+              <!-- ۵. آبی: در انتظار موعد - متن سفید روی پس‌زمینه آبی -->
+              <span v-else class="rounded-lg bg-blue-500/40 text-white border border-blue-300/60 flex items-center gap-0.5 font-black shadow-sm" :class="fontSizeClasses.badge">
                 <Clock class="w-2.5 h-2.5 sm:w-3 sm:h-3" /> <span>موعد</span>
               </span>
             </div>
 
             <div class="flex items-center gap-0.5" @click.stop>
-              <button @click="openEditForm(task)" title="ویرایش" class="p-1 text-gray-400 hover:text-white transition"><Edit3 class="w-3.5 h-3.5" /></button>
-              <button @click="deleteTask(task.id)" title="حذف" class="p-1 text-gray-400 hover:text-red-400 transition"><Trash2 class="w-3.5 h-3.5" /></button>
+              <button @click="openEditForm(task)" title="ویرایش" class="p-1.5 rounded-lg transition" style="background: rgba(255,255,255,0.08); color: #e5e7eb; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.18)';this.style.color='#ffffff'" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.color='#e5e7eb'"><Edit3 class="w-3.5 h-3.5" /></button>
+              <button @click="deleteTask(task.id)" title="حذف" class="p-1.5 rounded-lg transition" style="background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);" onmouseover="this.style.background='rgba(239,68,68,0.3)';this.style.color='#ffffff'" onmouseout="this.style.background='rgba(239,68,68,0.15)';this.style.color='#fca5a5'"><Trash2 class="w-3.5 h-3.5" /></button>
             </div>
           </div>
 
-          <!-- عنوان و چک‌باکس -->
-          <div class="flex items-start gap-1.5 sm:gap-2.5 mb-2" @click.stop="toggleTask(task)">
-            <button class="w-5 h-5 sm:w-6 sm:h-6 rounded-lg border-2 flex items-center justify-center transition-all mt-0.5 shrink-0" :class="(task.is_completed || task.status === 'completed') ? 'bg-purple-600 border-purple-600 text-white' : 'border-white/30 text-transparent'">
-              <Check class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <h3 class="leading-snug transition line-clamp-2" :class="[fontSizeClasses.title, fontColorClasses.title, (task.is_completed || task.status === 'completed') ? 'line-through opacity-40' : '', isTaskOverdue(task) ? 'text-red-300 font-black' : '']">
+          <!-- عنوان کارت (بدون چک‌باکس) -->
+          <div class="mb-2.5">
+            <h3 class="leading-snug transition line-clamp-2"
+                :style="{ fontFamily: 'BNazanin, Vazirmatn, serif', fontWeight: 'bold', fontSize: '1.15em', letterSpacing: '-0.01em', color: (task.is_completed || task.status === 'completed') ? 'rgba(255,255,255,0.45)' : isTaskOverdue(task) ? '#ffffff' : (fontColorMode === 'dark' ? '#0f172a' : '#ffffff') }">
               {{ task.title }}
             </h3>
+            <!-- خط تزئینی زیر عنوان -->
+            <div class="mt-1.5 h-px bg-gradient-to-r from-purple-500/40 via-purple-400/20 to-transparent"></div>
           </div>
 
           <!-- توضیحات -->
-          <p v-if="task.description" class="line-clamp-1 mb-2 text-[10px] sm:text-xs opacity-70" :class="[fontSizeClasses.desc, fontColorClasses.desc]">{{ task.description }}</p>
+          <p v-if="task.description" class="line-clamp-1 mb-2 text-[10px] sm:text-xs" :style="{ color: fontColorMode === 'dark' ? '#475569' : 'rgba(255,255,255,0.75)' }">{{ task.description }}</p>
         </div>
 
-        <div class="pt-2 border-t space-y-1" :class="fontColorClasses.border">
-          <div class="flex items-center justify-between text-[10px] sm:text-xs font-bold" :class="fontColorClasses.meta">
-            <span class="flex items-center gap-1 truncate" :class="isTaskOverdue(task) ? 'text-red-400 font-black' : ''">
-              <Calendar class="w-3 h-3 text-purple-400 shrink-0" /> 
-              <span class="truncate" :class="isTaskOverdue(task) ? 'text-red-400 animate-pulse' : 'text-amber-300'">{{ getNextActionDate(task) }}</span>
-            </span>
+        <div class="-mx-3 sm:-mx-5 -mb-3 sm:-mb-5 mt-2 px-3 sm:px-5 py-2.5 rounded-b-2xl md:rounded-b-3xl space-y-1.5" style="background: #000000; border-top: 1px solid rgba(255,255,255,0.08);">
+          <!-- ردیف اول: تاریخ اقدام بعدی + دکمه تمرکز -->
+          <div class="flex items-center justify-between text-[10px] sm:text-xs font-bold gap-2">
+            <div class="flex items-center gap-1.5 min-w-0 flex-1">
+              <Calendar class="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" style="color: #a78bfa;" />
+              <div class="flex flex-col min-w-0">
+                <span class="text-[9px] opacity-60 leading-none mb-0.5" style="color: #d4d4d8;">تاریخ اقدام بعدی</span>
+                <span class="truncate leading-none font-mono"
+                      :class="isTaskOverdue(task) ? 'text-red-400 animate-pulse' : 'text-amber-300'">{{ getNextActionDate(task) }}</span>
+              </div>
+            </div>
 
-            <button @click.stop="selectTaskForFocus(task)" class="px-2 py-0.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[9px] sm:text-[10px] font-black flex items-center gap-0.5 transition shrink-0">
-              <Eye class="w-3 h-3 text-amber-400" /> <span class="hidden sm:inline">تمرکز</span>
+            <button @click.stop="selectTaskForFocus(task)" class="px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-black flex items-center gap-1 transition shrink-0" style="background: rgba(255,255,255,0.08); color: #ffffff; border: 1px solid rgba(255,255,255,0.1);">
+              <Eye class="w-3 h-3 sm:w-3.5 sm:h-3.5" style="color: #fbbf24;" />
+              <span class="hidden sm:inline">تمرکز</span>
             </button>
           </div>
 
-          <div v-if="task.last_action_date" class="text-[9px] sm:text-[10px] opacity-60 flex items-center gap-1 truncate" :class="fontColorClasses.meta">
-            <CheckCircle2 class="w-3 h-3 text-emerald-400 shrink-0" />
-            <span class="truncate">اقدام: {{ formatDate(task.last_action_date) }}</span>
+          <!-- ردیف دوم: تاریخ آخرین اقدام (اگر وجود داشته باشد) -->
+          <div v-if="task.last_action_date" class="flex items-center gap-1.5 text-[9px] sm:text-[10px]">
+            <CheckCircle2 class="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" style="color: #34d399;" />
+            <div class="flex flex-col min-w-0 flex-1">
+              <span class="text-[9px] opacity-60 leading-none mb-0.5" style="color: #d4d4d8;">تاریخ آخرین اقدام</span>
+              <span class="truncate leading-none font-mono" style="color: #f3f4f6;">{{ formatDate(task.last_action_date) }}</span>
+            </div>
           </div>
         </div>
 
@@ -750,17 +938,34 @@ onMounted(async () => {
           fontColorClasses.border
         ]"
       >
-        <div class="flex items-center gap-2.5 flex-1 min-w-0" @click.stop="toggleTask(task)">
-          <button class="w-5 h-5 sm:w-6 sm:h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition" :class="(task.is_completed || task.status === 'completed') ? 'bg-purple-600 border-purple-600 text-white' : 'border-white/30 text-transparent'">
-            <Check class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
-          <span class="truncate font-black" :class="[fontSizeClasses.title, fontColorClasses.title, (task.is_completed || task.status === 'completed') ? 'line-through opacity-40' : '', isTaskOverdue(task) ? 'text-red-400' : '']">{{ task.title }}</span>
+        <div class="flex items-center gap-2.5 flex-1 min-w-0">
+          <!-- آیکون اختصاصی نوع کار در نمای فشرده -->
+          <span v-if="isTaskRecurring(task)"
+                :title="`کار دوره‌ای (${recurrenceLabel(task.recurrence_type)})`"
+                class="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                :style="{
+                  background: themeStore.currentTheme === 'light-2026' ? '#ede9fe' : 'linear-gradient(135deg, rgba(168,85,247,0.3), rgba(99,102,241,0.25))',
+                  border: themeStore.currentTheme === 'light-2026' ? '1px solid #7c3aed' : '1px solid rgba(168,85,247,0.5)',
+                  boxShadow: '0 0 8px rgba(168,85,247,0.2)'
+                }">
+            <RotateCw class="w-3 h-3 animate-spin" :style="{ animationDuration: '8s', color: themeStore.currentTheme === 'light-2026' ? '#5b21b6' : '#c4b5fd' }" />
+          </span>
+          <span v-else title="کار بدون تکرار"
+                class="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                :style="{
+                  background: themeStore.currentTheme === 'light-2026' ? '#cffafe' : 'rgba(34,211,238,0.15)',
+                  border: themeStore.currentTheme === 'light-2026' ? '1px solid #0891b2' : '1px solid rgba(34,211,238,0.5)'
+                }">
+            <Circle class="w-2.5 h-2.5 fill-current" :style="{ color: themeStore.currentTheme === 'light-2026' ? '#0e7490' : '#67e8f9' }" />
+          </span>
+          <span class="truncate font-black"
+                :style="{ fontFamily: 'BNazanin, Vazirmatn, serif', fontSize: '1.1em', color: (task.is_completed || task.status === 'completed') ? 'rgba(255,255,255,0.45)' : isTaskOverdue(task) ? '#ffffff' : (fontColorMode === 'dark' ? '#0f172a' : '#ffffff') }">{{ task.title }}</span>
         </div>
 
         <div class="flex items-center gap-2 shrink-0" @click.stop>
-          <span class="text-[10px] sm:text-xs font-bold" :class="isTaskOverdue(task) ? 'text-red-400' : 'text-amber-300'">{{ getNextActionDate(task) }}</span>
-          <button @click="openEditForm(task)" class="p-1.5 text-gray-300 hover:text-white"><Edit3 class="w-3.5 h-3.5" /></button>
-          <button @click="deleteTask(task.id)" class="p-1.5 text-gray-300 hover:text-red-400"><Trash2 class="w-3.5 h-3.5" /></button>
+          <span class="text-[10px] sm:text-xs font-bold" :style="{ color: isTaskOverdue(task) ? '#fca5a5' : (fontColorMode === 'dark' ? '#475569' : 'rgba(255,255,255,0.75)') }">{{ getNextActionDate(task) }}</span>
+          <button @click="openEditForm(task)" class="p-1.5 rounded-lg transition" style="background: rgba(255,255,255,0.08); color: #e5e7eb; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.18)';this.style.color='#ffffff'" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.color='#e5e7eb'"><Edit3 class="w-3.5 h-3.5" /></button>
+          <button @click="deleteTask(task.id)" class="p-1.5 rounded-lg transition" style="background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);" onmouseover="this.style.background='rgba(239,68,68,0.3)';this.style.color='#ffffff'" onmouseout="this.style.background='rgba(239,68,68,0.15)';this.style.color='#fca5a5'"><Trash2 class="w-3.5 h-3.5" /></button>
         </div>
       </div>
     </div>
@@ -775,8 +980,8 @@ onMounted(async () => {
                 <BookOpen class="w-6 h-6 animate-pulse" />
               </div>
               <div>
-                <h3 class="text-xl md:text-2xl font-black text-white">راهنمای جامع تعریف تسک‌ها و منطق برنامه</h3>
-                <p class="text-xs text-gray-400 mt-1">آموزش گام‌به‌گام تعریف تسک‌های ساده و دوره‌ای با مثال‌های عملی</p>
+                <h3 class="text-xl md:text-2xl font-black text-white">راهنمای جامع تعریف کارها و منطق برنامه</h3>
+                <p class="text-xs text-gray-400 mt-1">آموزش گام‌به‌گام تعریف کارهای بدون تکرار و دوره‌ای با مثال‌های عملی</p>
               </div>
             </div>
             <button @click="showHelpModal = false" class="p-2 text-gray-400 hover:text-white"><X class="w-6 h-6" /></button>
@@ -785,12 +990,13 @@ onMounted(async () => {
           <div class="space-y-6 text-right">
             <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
               <h4 class="text-base font-black text-amber-400 flex items-center gap-2">
-                <Info class="w-5 h-5" /> منطق محاسباتی تاریخ‌ها و تکرار تسک‌ها
+                <Info class="w-5 h-5" /> منطق محاسباتی تاریخ‌ها و تکرار کارها
               </h4>
               <ul class="text-xs md:text-sm text-gray-300 space-y-2 leading-relaxed list-disc list-inside">
-                <li><strong class="text-white">تسک‌های ساده (یک‌باره):</strong> یک تاریخ ثبت و مدت زمان دارند. پس از تیک خوردن، وضعیت به «تکمیل‌شده» تغییر کرده و تاریخ انجام در «آخرین اقدام» ثبت می‌شود.</li>
-                <li><strong class="text-white">تسک‌های دوره‌ای (تکرارشونده):</strong> بازه تکرار دارند. با تیک زدن هر دوره، تاریخ امروز در «آخرین اقدام» ثبت شده و تاریخ مهلت بعدی خودکار برای دوره آینده تنظیم می‌شود.</li>
-                <li><strong class="text-white">تسک‌های عقب‌افتاده:</strong> هر تسکی که تاریخ مهلت آن قبل از امروز باشد و تیک نخورده باشد، قرمز و در تب «عقب‌افتاده‌ها» قرار می‌گیرد.</li>
+                <li><strong class="text-white">کارهای بدون تکرار (یک‌باره):</strong> یک تاریخ ثبت و مدت زمان دارند. پس از تیک خوردن، وضعیت به «تکمیل‌شده» تغییر کرده و تاریخ انجام در «آخرین اقدام» ثبت می‌شود.</li>
+                <li><strong class="text-white">کارهای دوره‌ای (تکرارشونده):</strong> بازه تکرار دارند. با تیک زدن هر دوره، تاریخ امروز در «آخرین اقدام» ثبت شده و تاریخ مهلت بعدی خودکار برای دوره آینده تنظیم می‌شود.</li>
+                <li><strong class="text-white">کارهای عقب‌افتاده:</strong> هر کاری که تاریخ مهلت آن قبل از امروز باشد و تیک نخورده باشد، قرمز و در تب «عقب‌افتاده‌ها» قرار می‌گیرد.</li>
+                <li><strong class="text-white">کارهای تمدید شده:</strong> اگر کار عقب‌افتاده باشد و برای آن «تاریخ پیشنهادی» (تمدید) در حالت تمرکز یا ویرایش تنظیم شود، به رنگ آسمانی نمایش داده می‌شود. وقتی به تاریخ پیشنهادی برسیم، کارت به رنگ «امروز» تغییر می‌کند.</li>
               </ul>
             </div>
           </div>
@@ -809,7 +1015,7 @@ onMounted(async () => {
           <div class="flex items-center justify-between mb-5 pb-4 border-b border-white/10">
             <button @click="closeTaskFocus" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-black rounded-xl shadow-xl transition flex items-center gap-1.5 text-xs">
               <ArrowRight class="w-4 h-4" />
-              <span>بازگشت به لیست تسک‌ها</span>
+              <span>بازگشت به لیست کارها</span>
             </button>
             <div class="flex items-center gap-2">
               <button @click="openEditForm(selectedTask)" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs transition flex items-center gap-1"><Edit3 class="w-3.5 h-3.5 text-purple-400" /> ویرایش</button>
@@ -818,7 +1024,7 @@ onMounted(async () => {
           </div>
 
           <div class="flex items-center gap-2 mb-3 flex-wrap">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-black text-xs"><Sparkles class="w-3.5 h-3.5 text-amber-400 animate-spin" /> شناسنامه کامل تسک</span>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-black text-xs"><Sparkles class="w-3.5 h-3.5 text-amber-400 animate-spin" /> شناسنامه کامل کار</span>
             <span v-if="isTaskOverdue(selectedTask)" class="px-3 py-1 rounded-full bg-red-500/30 text-red-300 font-black text-xs border border-red-500/50">🚨 عقب‌افتاده</span>
             <span v-if="isTaskRecurring(selectedTask)" class="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 font-black text-xs border border-amber-500/30">🔄 تکرارشونده</span>
           </div>
@@ -836,6 +1042,47 @@ onMounted(async () => {
             <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2 bg-purple-500/20 text-purple-400 rounded-xl"><Tag class="w-4 h-4" /></div><div><p class="text-[10px] text-gray-400 font-bold">دسته‌بندی</p><p class="text-xs font-black text-white">{{ selectedTask.category || 'عمومی' }}</p></div></div>
             <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2 bg-amber-500/20 text-amber-400 rounded-xl"><Clock class="w-4 h-4" /></div><div><p class="text-[10px] text-gray-400 font-bold">تاریخ اقدام / مهلت بعدی</p><p class="text-xs font-black text-amber-300">{{ getNextActionDate(selectedTask) }}</p></div></div>
             <div v-if="selectedTask.last_action_date" class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3"><div class="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl"><CheckCircle2 class="w-4 h-4" /></div><div><p class="text-[10px] text-gray-400 font-bold">تاریخ آخرین اقدام</p><p class="text-xs font-bold text-white">{{ formatDate(selectedTask.last_action_date) }}</p></div></div>
+
+            <!-- 🆕 تاریخ پیشنهادی (تمدید) - قابل تنظیم فقط وقتی کار عقب‌افتاده باشد -->
+            <div v-if="!selectedTask.is_completed && getTaskStatus(selectedTask) === 'overdue'" class="sm:col-span-2 p-4 rounded-2xl border-2 border-sky-500/40 flex flex-col gap-2" style="background: rgba(14,165,233,0.1);">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                  <div class="p-2 bg-sky-500/30 text-sky-300 rounded-xl flex-shrink-0">
+                    <Clock class="w-4 h-4" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[10px] text-sky-200/80 font-bold">تاریخ پیشنهادی برای تمدید</p>
+                    <p v-if="!focusEditingSuggested && selectedTask.suggested_due_date" class="text-xs font-black text-sky-200 truncate">{{ formatDate(selectedTask.suggested_due_date) }}</p>
+                    <p v-else-if="!focusEditingSuggested" class="text-xs font-bold text-sky-200/60 italic">تنظیم نشده - برای تمدید کلیک کنید</p>
+                  </div>
+                </div>
+                <button v-if="!focusEditingSuggested" @click="focusEditingSuggested = true; focusSuggestedDate = selectedTask.suggested_due_date || ''" class="px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0" style="background: #0ea5e9; color: #fff;">
+                  <Edit3 class="w-3 h-3" /> تنظیم
+                </button>
+              </div>
+              <div v-if="focusEditingSuggested" class="flex items-center gap-2 flex-wrap">
+                <div class="flex-1 min-w-[150px]">
+                  <DateInputPersian v-model="focusSuggestedDate" />
+                </div>
+                <button @click="saveSuggestedFromFocus" :disabled="isLoading" class="px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1" style="background: #10b981; color: #fff;">
+                  <Check class="w-3 h-3" /> ذخیره
+                </button>
+                <button @click="focusEditingSuggested = false; focusSuggestedDate = selectedTask.suggested_due_date || null" class="px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1" style="background: rgba(255,255,255,0.1); color: #fff;">
+                  <X class="w-3 h-3" /> لغو
+                </button>
+              </div>
+              <p class="text-[10px] text-sky-200/70 font-bold leading-relaxed">اگر کار انجام نشد، تاریخ پیشنهادی تعیین کنید تا کارت به رنگ «تمدید شده» درآید و تا آن تاریخ فرصت داشته باشید.</p>
+            </div>
+            <div v-else-if="!selectedTask.is_completed && selectedTask.suggested_due_date && getTaskStatus(selectedTask) === 'extended'" class="sm:col-span-2 p-4 rounded-2xl border-2 border-sky-500/40 flex items-center gap-3" style="background: rgba(14,165,233,0.1);">
+              <div class="p-2 bg-sky-500/30 text-sky-300 rounded-xl flex-shrink-0">
+                <Clock class="w-4 h-4" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-[10px] text-sky-200/80 font-bold">تمدید شده تا</p>
+                <p class="text-xs font-black text-sky-200">{{ formatDate(selectedTask.suggested_due_date) }}</p>
+              </div>
+              <span class="text-[9px] px-2 py-0.5 rounded-full font-black" style="background: #0ea5e9; color: #fff;">تمدید</span>
+            </div>
           </div>
 
           <div class="flex justify-end pt-3 border-t border-white/10">

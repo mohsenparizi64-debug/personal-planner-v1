@@ -136,7 +136,7 @@ const handleVerifyAndRegister = async () => {
           <span class="text-white text-3xl font-black">P</span>
         </div>
         <h2 class="text-2xl md:text-3xl font-black text-white">ثبت‌نام در پلنر شخصی</h2>
-        <p class="text-xs md:text-sm text-gray-400 mt-1">مدیریت هوشمند اهداف، تسک‌ها و سبک زندگی</p>
+        <p class="text-xs md:text-sm text-gray-400 mt-1">مدیریت هوشمند اهداف، کارها و سبک زندگی</p>
       </div>
 
       <div class="glass-card rounded-3xl border border-white/10 p-6 md:p-8 shadow-2xl bg-slate-900/90 backdrop-blur-xl">

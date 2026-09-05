@@ -55,13 +55,14 @@ async def reset_all_goals(
     count = await goal_crud.delete_all_goals(db, current_user.id)
     return {"message": f"{count} goals deleted"}
 
-@router.get("/logs", response_model=List[GoalLogRead])
+@router.get("/logs")
 async def get_recent_logs(
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     return await goal_crud.get_goal_logs(db, current_user.id, limit)
+
 
 @router.get("/{goal_id}/logs", response_model=List[GoalLogRead])
 async def get_goal_logs(

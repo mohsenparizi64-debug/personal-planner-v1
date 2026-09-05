@@ -31,6 +31,36 @@ const calendarViewMode = ref('days')
 // وضعیت تقویم پویا
 const currentJalaliYear = ref(1403)
 const currentJalaliMonth = ref(12) // ۱ تا ۱۲
+// 🆕 روز انتخاب‌شده (پیش‌فرض: روز جاری)
+const selectedDay = ref(null)
+
+// 🆕 همگام‌سازی سال/ماه/روز با تاریخ جاری شمسی (و ذخیره در refs جداگانه)
+const todayJalaliYear = ref(0)
+const todayJalaliMonth = ref(0)
+const todayJalaliDay = ref(0)
+
+const setToCurrentShamsi = () => {
+  const now = new Date()
+  // استفاده از Intl برای تبدیل به شمسی
+  const formatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    year: 'numeric', month: 'numeric', day: 'numeric'
+  })
+  const parts = formatter.formatToParts(now)
+  let y = 0, m = 0, d = 0
+  for (const p of parts) {
+    if (p.type === 'year') y = parseInt(p.value.replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)), 10)
+    else if (p.type === 'month') m = parseInt(p.value.replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)), 10)
+    else if (p.type === 'day') d = parseInt(p.value.replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)), 10)
+  }
+  if (y && m && d) {
+    currentJalaliYear.value = y
+    currentJalaliMonth.value = m
+    selectedDay.value = d
+    todayJalaliYear.value = y
+    todayJalaliMonth.value = m
+    todayJalaliDay.value = d
+  }
+}
 
 const jalaliMonths = [
   'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
@@ -227,6 +257,10 @@ async function toggleCalendar(e) {
     return
   }
   calendarViewMode.value = 'days'
+  // 🆕 اگر modelValue خالی است، تقویم با تاریخ جاری شمسی باز شود
+  if (!props.modelValue) {
+    setToCurrentShamsi()
+  }
   // استفاده از event target مستقیم - بدون نیاز به ref/nextTick
   const triggerEl = e?.currentTarget
   // اول popup رو در state فعال کن (با position موقت وسط صفحه)
@@ -386,13 +420,18 @@ function nextDecade() {
         <div class="grid grid-cols-7 gap-1 text-center text-xs">
           <div v-for="pad in firstDayWeekdayIndex" :key="'pad-' + pad" class="p-1.5"></div>
 
-          <button 
-            v-for="day in totalDaysInMonth" 
+          <button
+            v-for="day in totalDaysInMonth"
             :key="day"
             type="button"
             @click="selectDay(day)"
             class="p-1.5 rounded-xl font-bold transition hover:bg-purple-600 hover:text-white"
             :class="[
+              // روز جاری: حلقه آبی (وقتی در ماه/سال جاری باشد)
+              day === todayJalaliDay && currentJalaliYear === todayJalaliYear && currentJalaliMonth === todayJalaliMonth ? 'ring-2 ring-blue-400' : '',
+              // روز انتخاب‌شده (کاربر): پس‌زمینه بنفش پررنگ
+              selectedDay === day ? 'bg-purple-600 text-white shadow-lg' :
+              // روزهای تعطیل (پنج‌شنبه و جمعه)
               ((firstDayWeekdayIndex + day - 1) % 7 >= 5) ? 'text-red-400 bg-red-500/10 border border-red-500/20' : 'text-gray-200 bg-white/5'
             ]"
           >

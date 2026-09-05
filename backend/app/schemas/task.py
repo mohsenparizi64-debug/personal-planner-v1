@@ -20,6 +20,7 @@ class TaskBase(BaseModel):
     is_infinite_recurrence: Optional[bool] = True    # گزینه جدید: مداومت دوره تکرار
     priority: int = 0
     auto_reschedule: Optional[bool] = True
+    suggested_due_date: Optional[GDate] = None  # 🆕 تاریخ پیشنهادی برای انجام (تمدید)
 
 class TaskCreate(TaskBase):
     pass
@@ -42,6 +43,7 @@ class TaskUpdate(BaseModel):
     priority: Optional[int] = None
     is_completed: Optional[bool] = None
     auto_reschedule: Optional[bool] = None
+    suggested_due_date: Optional[GDate] = None  # 🆕 قابل بروزرسانی توسط کاربر
 
 class TaskRead(TaskBase):
     id: int

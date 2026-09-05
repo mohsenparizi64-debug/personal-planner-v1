@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { 
   Plus, Trash2, Edit3, Check, X, Target, BarChart3, ChevronDown, 
   ChevronUp, Calendar, ListTodo, Activity, CheckCircle2, Flag, AlertCircle,
-  Eye, ArrowRight, Sparkles, BookOpen, Info
+  Eye, ArrowRight, Sparkles, BookOpen, Info, Search, Filter, RefreshCw, TrendingUp, Clock, Layers, BarChart,
+  RotateCw, Circle
 } from 'lucide-vue-next'
 import api from '@/services/api'
 import TaskFormModal from '@/components/TaskFormModal.vue'
@@ -188,7 +189,7 @@ const saveTask = async () => {
     await api.put(url, taskForm.value)
     showTaskModal.value = false
     await fetchSubGoals()
-    showToast('✅ تغییرات تسک با موفقیت ذخیره شد')
+    showToast('✅ تغییرات کار با موفقیت ذخیره شد')
   } catch (e) { showToast('❌ خطا در ذخیره', 'error') } finally { isLoading.value = false }
 }
 
@@ -218,6 +219,154 @@ const subGoalProgress = (sg) => {
   return Math.round((sg.tasks.filter(t => t.is_completed).length / sg.tasks.length) * 100)
 }
 
+// 🏷️ برچسب فارسی نوع تکرار
+const recurrenceLabel = (type) => {
+  const map = { daily: 'روزانه', weekly: 'هفتگی', monthly: 'ماهانه', yearly: 'سالانه' }
+  return map[type] || 'دوره‌ای'
+}
+
+// ============================================================
+// 🚀 ارتقاهای سربرگ: state و computed ها
+// ============================================================
+const searchQuery = ref('')                // جستجوی گام‌ها
+const filterStatus = ref('all')            // فیلتر وضعیت: all, completed, in_progress, pending
+const sortBy = ref('order')                // مرتب‌سازی: order, date, progress, priority
+const lastRefreshed = ref(new Date())      // زمان آخرین بروزرسانی
+const isRefreshing = ref(false)            // وضعیت لودینگ بروزرسانی
+const goalSwitcherOpen = ref(false)        // باز بودن انتخاب‌گر هدف
+const treeExpanded = ref(true)             // باز بودن سکشن درختی در modal
+const expandedNodes = ref({})              // map: subGoalId -> expanded (پیش‌فرض باز)
+const treeModalOpen = ref(false)           // باز بودن modal ساختار درختی
+
+// 📌 وقتی هدف جدیدی انتخاب می‌شود، همه گره‌های درخت ریست شوند
+watch(selectedGoalId, () => { expandedNodes.value = {} })
+const toggleSubGoalNode = (id) => {
+  expandedNodes.value[id] = !(expandedNodes.value[id] !== false)
+}
+
+// 🌳 باز کردن modal ساختار درختی هدف (حتی اگر فعال نباشد)
+const openGoalTree = async (goalId = null) => {
+  const targetId = goalId || selectedGoalId.value
+  if (!targetId) return
+  // اگر هدف انتخاب نشده، ابتدا آن را فعال کنیم تا گام‌ها و کارها لود شوند
+  if (targetId !== selectedGoalId.value) {
+    selectGoal(targetId)
+  }
+  // کمی صبر برای لود شدن subGoals
+  await new Promise(r => setTimeout(r, 100))
+  expandedNodes.value = {}
+  treeModalOpen.value = true
+}
+
+// 📊 آمار کلی از همه اهداف (نه فقط هدف فعال)
+const overallStats = computed(() => {
+  let totalSubGoals = 0
+  let completedSubGoals = 0
+  let totalTasks = 0
+  let completedTasks = 0
+  let activeKpis = 0
+  goals.value.forEach(g => {
+    // برای هر goal باید subGoals را داشته باشیم؛ فعلاً فقط هدف فعال را داریم
+  })
+  // آمار هدف فعال فعلی
+  if (selectedGoalId.value && subGoals.value.length > 0) {
+    totalSubGoals = subGoals.value.length
+    completedSubGoals = subGoals.value.filter(sg => subGoalProgress(sg) >= 100).length
+    totalTasks = subGoals.value.reduce((sum, sg) => sum + (sg.tasks?.length || 0), 0)
+    completedTasks = subGoals.value.reduce((sum, sg) => sum + (sg.tasks?.filter(t => t.is_completed).length || 0), 0)
+  }
+  activeKpis = kpis.value.length
+  const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+  return { totalSubGoals, completedSubGoals, totalTasks, completedTasks, activeKpis, overallProgress }
+})
+
+// 🎯 هدف فعال فعلی (شیء کامل)
+const activeGoal = computed(() => goals.value.find(g => g.id === selectedGoalId.value) || null)
+
+// 📅 گام‌های نزدیک به سررسید (۷ روز آینده)
+const upcomingDeadlines = computed(() => {
+  const now = new Date()
+  const future = new Date()
+  future.setDate(future.getDate() + 7)
+  return subGoals.value.filter(sg => {
+    if (!sg.target_date || subGoalProgress(sg) >= 100) return false
+    const d = new Date(sg.target_date)
+    return d >= now && d <= future
+  }).length
+})
+
+// 🔍 فیلتر و مرتب‌سازی گام‌ها
+const filteredSubGoals = computed(() => {
+  let list = [...subGoals.value]
+  // جستجو
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.trim().toLowerCase()
+    list = list.filter(sg =>
+      sg.title.toLowerCase().includes(q) ||
+      (sg.description && sg.description.toLowerCase().includes(q))
+    )
+  }
+  // فیلتر وضعیت
+  if (filterStatus.value !== 'all') {
+    list = list.filter(sg => {
+      const p = subGoalProgress(sg)
+      if (filterStatus.value === 'completed') return p >= 100
+      if (filterStatus.value === 'in_progress') return p > 0 && p < 100
+      if (filterStatus.value === 'pending') return p === 0
+      return true
+    })
+  }
+  // مرتب‌سازی
+  if (sortBy.value === 'progress') {
+    list.sort((a, b) => subGoalProgress(b) - subGoalProgress(a))
+  } else if (sortBy.value === 'date') {
+    list.sort((a, b) => new Date(a.target_date || 0) - new Date(b.target_date || 0))
+  } else if (sortBy.value === 'priority') {
+    list.sort((a, b) => (b.priority || 0) - (a.priority || 0))
+  }
+  return list
+})
+
+// 🔄 تابع refresh کلی
+const refreshAll = async () => {
+  isRefreshing.value = true
+  try {
+    await fetchGoals()
+    if (selectedGoalId.value) {
+      await Promise.all([fetchSubGoals(), fetchKPIs()])
+    }
+    lastRefreshed.value = new Date()
+    showToast('✅ بروزرسانی انجام شد')
+  } catch (e) {
+    showToast('❌ خطا در بروزرسانی', 'error')
+  } finally {
+    setTimeout(() => { isRefreshing.value = false }, 600)
+  }
+}
+
+// ⏱️ فرمت زمان نسبی برای "آخرین بروزرسانی"
+const relativeTime = computed(() => {
+  const diff = Math.floor((Date.now() - lastRefreshed.value.getTime()) / 1000)
+  if (diff < 60) return `${diff} ثانیه پیش`
+  if (diff < 3600) return `${Math.floor(diff / 60)} دقیقه پیش`
+  return `${Math.floor(diff / 3600)} ساعت پیش`
+})
+
+let refreshInterval = null
+const handleEsc = (e) => { if (e.key === 'Escape' && treeModalOpen.value) treeModalOpen.value = false }
+onMounted(() => {
+  refreshInterval = setInterval(() => {
+    // برای reactive شدن relativeTime
+    lastRefreshed.value = new Date(lastRefreshed.value.getTime())
+  }, 10000)
+  window.addEventListener('keydown', handleEsc)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) clearInterval(refreshInterval)
+  window.removeEventListener('keydown', handleEsc)
+})
+
 onMounted(() => {
   fetchGoals().then(() => {
     const savedGoalId = sessionStorage.getItem('active_goal_id')
@@ -239,24 +388,180 @@ onMounted(() => {
     <!-- Toast -->
     <div v-if="message" class="fixed top-24 left-1/2 transform -translate-x-1/2 z-[500] px-6 py-3 rounded-xl shadow-2xl text-white font-semibold transition-all" :style="{ background: messageType === 'error' ? '#ef4444' : 'var(--accent)' }">{{ message }}</div>
 
-    <!-- Header Section -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
-      <div class="animate-in slide-in-from-right duration-500">
-        <h1 class="text-4xl md:text-5xl font-black mb-3 text-white flex items-center gap-3">
-          <Activity class="w-10 h-10 text-purple-400" /> نقشه راه
-        </h1>
-        <p class="opacity-70 text-lg md:text-xl" :style="{ color: 'var(--text-secondary)' }">مسیر هوشمند و دو ستونه رسیدن به اهداف</p>
+    <!-- 🚀 سربرگ ارتقایافته نقشه راه -->
+    <div class="mb-8 animate-in slide-in-from-top duration-700">
+
+      <!-- ردیف اول: عنوان + دکمه‌های اصلی -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 border border-purple-400/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+            <MapPin class="w-6 h-6 md:w-7 md:h-7 text-purple-300" />
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-2xl md:text-3xl lg:text-4xl font-black text-white flex items-center gap-2">
+              نقشه راه
+              <span v-if="upcomingDeadlines > 0" class="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1">
+                <Clock class="w-3 h-3" /> {{ upcomingDeadlines }} سررسید
+              </span>
+            </h1>
+            <p class="opacity-70 text-xs md:text-sm flex items-center gap-2" :style="{ color: 'var(--text-secondary)' }">
+              <span class="truncate">{{ activeGoal ? `هدف فعال: ${activeGoal.title}` : 'مسیر هوشمند رسیدن به اهداف' }}</span>
+              <span class="opacity-40">•</span>
+              <span class="flex items-center gap-1 whitespace-nowrap">
+                <RefreshCw class="w-3 h-3" :class="{ 'animate-spin': isRefreshing }" />
+                {{ relativeTime }}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <!-- دکمه‌های عمل اصلی -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button @click="refreshAll" :disabled="isRefreshing" title="بروزرسانی"
+                  class="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition flex items-center justify-center text-white/80 hover:text-white disabled:opacity-50">
+            <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': isRefreshing }" />
+          </button>
+          <button v-if="selectedGoalId" @click="openNewKPIForm"
+                  class="px-3 md:px-4 py-2.5 md:py-3 rounded-xl text-white font-bold text-xs md:text-sm bg-white/10 hover:bg-white/20 transition shadow-lg border border-white/10 flex items-center gap-1.5">
+            <Plus class="w-4 h-4 text-blue-400" />
+            <span class="hidden sm:inline">افزودن KPI</span>
+          </button>
+          <button v-if="selectedGoalId" @click="openNewSubGoalForm"
+                  class="px-4 md:px-5 py-2.5 md:py-3 rounded-xl text-white font-black text-xs md:text-sm transition shadow-xl hover:scale-105 active:scale-95 shadow-purple-500/20 bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center gap-1.5">
+            <Plus class="w-4 h-4 md:w-5 md:h-5" />
+            <span>گام جدید</span>
+          </button>
+        </div>
       </div>
 
-      <div v-if="selectedGoalId" class="flex items-center gap-3">
-        <button @click="openNewKPIForm" class="px-6 py-4 rounded-2xl text-white font-bold text-sm bg-white/10 hover:bg-white/20 transition shadow-lg border border-white/10">
-          <Plus class="w-5 h-5 inline-block ml-1 text-blue-400" /> افزودن KPI
-        </button>
+      <!-- ردیف دوم: کارت وضعیت هدف فعال + نوار پیشرفت کلی (فقط وقتی هدفی انتخاب شده) -->
+      <div v-if="selectedGoalId && activeGoal" class="glass-card rounded-2xl border border-white/10 p-4 md:p-5 mb-4">
+        <div class="flex flex-col md:flex-row md:items-center gap-4">
+          <!-- اطلاعات هدف فعال -->
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                 :style="{ background: 'linear-gradient(135deg, var(--accent), rgba(99,102,241,0.6))' }">
+              <Target class="w-5 h-5 text-white" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-[10px] opacity-60 font-bold">در حال اجرای</p>
+              <p class="text-sm md:text-base font-black text-white truncate">{{ activeGoal.title }}</p>
+            </div>
+            <button @click="selectedGoalId = null" title="بستن هدف فعال"
+                    class="w-8 h-8 rounded-lg hover:bg-white/10 transition flex items-center justify-center text-white/60 hover:text-white flex-shrink-0">
+              <X class="w-4 h-4" />
+            </button>
+          </div>
 
-        <button @click="openNewSubGoalForm" class="px-8 py-4 rounded-2xl text-white font-black text-base md:text-lg transition shadow-xl hover:scale-105 active:scale-95 shadow-purple-500/20 bg-gradient-to-r from-purple-600 to-indigo-600">
-          <Plus class="w-6 h-6 inline-block ml-2" /> تعریف گام جدید
-        </button>
+          <!-- نوار پیشرفت کلی هدف فعال -->
+          <div class="md:w-80">
+            <div class="flex items-center justify-between text-[10px] font-bold mb-1.5">
+              <span class="opacity-70 flex items-center gap-1">
+                <TrendingUp class="w-3 h-3 text-emerald-400" />
+                پیشرفت کلی هدف
+              </span>
+              <span class="text-emerald-300 font-black">{{ overallStats.overallProgress }}%</span>
+            </div>
+            <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-purple-500 transition-all duration-1000 rounded-full"
+                   :style="{ width: overallStats.overallProgress + '%' }"></div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <!-- ردیف سوم: نوار آمار زنده -->
+      <div v-if="selectedGoalId" class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4">
+        <!-- کارت آمار: گام‌ها -->
+        <div class="glass-card rounded-xl border border-white/10 p-3 md:p-4">
+          <div class="flex items-center gap-2 mb-1">
+            <div class="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+              <Layers class="w-3.5 h-3.5 text-purple-300" />
+            </div>
+            <p class="text-[10px] opacity-60 font-bold">گام‌ها</p>
+          </div>
+          <p class="text-lg md:text-xl font-black text-white">
+            {{ overallStats.completedSubGoals }}<span class="text-xs opacity-50">/{{ overallStats.totalSubGoals }}</span>
+          </p>
+          <p class="text-[9px] opacity-50 font-bold">تکمیل شده</p>
+        </div>
+
+        <!-- کارت آمار: کارها -->
+        <div class="glass-card rounded-xl border border-white/10 p-3 md:p-4">
+          <div class="flex items-center gap-2 mb-1">
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 class="w-3.5 h-3.5 text-emerald-300" />
+            </div>
+            <p class="text-[10px] opacity-60 font-bold">کارها</p>
+          </div>
+          <p class="text-lg md:text-xl font-black text-white">
+            {{ overallStats.completedTasks }}<span class="text-xs opacity-50">/{{ overallStats.totalTasks }}</span>
+          </p>
+          <p class="text-[9px] opacity-50 font-bold">انجام شده</p>
+        </div>
+
+        <!-- کارت آمار: KPIها -->
+        <div class="glass-card rounded-xl border border-white/10 p-3 md:p-4">
+          <div class="flex items-center gap-2 mb-1">
+            <div class="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <Activity class="w-3.5 h-3.5 text-blue-300" />
+            </div>
+            <p class="text-[10px] opacity-60 font-bold">KPIها</p>
+          </div>
+          <p class="text-lg md:text-xl font-black text-white">{{ overallStats.activeKpis }}</p>
+          <p class="text-[9px] opacity-50 font-bold">فعال</p>
+        </div>
+
+        <!-- کارت آمار: سررسیدها -->
+        <div class="glass-card rounded-xl border border-white/10 p-3 md:p-4">
+          <div class="flex items-center gap-2 mb-1">
+            <div class="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <Clock class="w-3.5 h-3.5 text-amber-300" />
+            </div>
+            <p class="text-[10px] opacity-60 font-bold">سررسید ۷ روز</p>
+          </div>
+          <p class="text-lg md:text-xl font-black"
+             :class="upcomingDeadlines > 0 ? 'text-amber-300' : 'text-white'">
+            {{ upcomingDeadlines }}
+          </p>
+          <p class="text-[9px] opacity-50 font-bold">گام نزدیک</p>
+        </div>
+      </div>
+
+      <!-- ردیف چهارم: جستجو، فیلتر، مرتب‌سازی (فقط وقتی گام‌ها لود شده) -->
+      <div v-if="selectedGoalId && subGoals.length > 0" class="glass-card rounded-2xl border border-white/10 p-3 md:p-4">
+        <div class="flex flex-col md:flex-row gap-2 md:gap-3">
+          <!-- جستجو -->
+          <div class="relative flex-1">
+            <Search class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+            <input v-model="searchQuery" type="text" placeholder="جستجو در گام‌ها..."
+                   class="w-full pr-9 pl-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs md:text-sm text-white placeholder-white/40 focus:border-purple-500/50 focus:outline-none transition" />
+          </div>
+          <!-- فیلتر -->
+          <div class="flex items-center gap-1 bg-white/5 rounded-xl p-1 border border-white/10">
+            <button v-for="f in [{v:'all',l:'همه'},{v:'in_progress',l:'در جریان'},{v:'pending',l:'شروع‌نشده'},{v:'completed',l:'تکمیل'}]"
+                    :key="f.v" @click="filterStatus = f.v"
+                    class="px-2 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition"
+                    :class="filterStatus === f.v ? 'bg-purple-600 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'">
+              {{ f.l }}
+            </button>
+          </div>
+          <!-- مرتب‌سازی -->
+          <select v-model="sortBy"
+                  class="px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs md:text-sm text-white focus:border-purple-500/50 focus:outline-none transition cursor-pointer">
+            <option value="order">ترتیب تعریف</option>
+            <option value="progress">پیشرفت</option>
+            <option value="date">سررسید</option>
+            <option value="priority">اولویت</option>
+          </select>
+        </div>
+        <!-- نشانگر تعداد فیلترشده -->
+        <div v-if="searchQuery || filterStatus !== 'all'" class="text-[10px] opacity-60 font-bold mt-2 px-1">
+          نمایش {{ filteredSubGoals.length }} از {{ subGoals.length }} گام
+          <button @click="searchQuery = ''; filterStatus = 'all'" class="text-purple-300 hover:underline mr-2">پاک کردن فیلتر</button>
+        </div>
+      </div>
+
     </div>
 
     <!-- 🌟 فرم تعریف/ویرایش گام جدید -->
@@ -342,11 +647,30 @@ onMounted(() => {
     <div class="mb-12">
       <label class="text-xs font-bold mb-4 block opacity-50 uppercase tracking-widest text-white">انتخاب هدف فعال شما</label>
       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        <button v-for="goal in goals" :key="goal.id" @click="selectGoal(goal.id)" 
-                class="p-5 rounded-2xl transition-all border-2 font-black text-sm text-center"
-                :style="selectedGoalId === goal.id ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', boxShadow: '0 12px 30px -5px var(--accent)' } : { background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }">
-          {{ goal.title }}
-        </button>
+        <div v-for="goal in goals" :key="goal.id"
+             class="rounded-2xl border-2 transition-all relative overflow-hidden"
+             :style="selectedGoalId === goal.id ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', boxShadow: '0 12px 30px -5px var(--accent)' } : { background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }">
+          <!-- دکمه اصلی انتخاب هدف (کل کارت به جز دکمه‌های کناری) -->
+          <button @click="selectGoal(goal.id)"
+                  class="w-full p-5 pb-2 text-center font-black text-sm">
+            {{ goal.title }}
+          </button>
+          <!-- دکمه‌های کناری: نقشه راه + ساختار درختی -->
+          <div class="flex items-center justify-center gap-2 px-3 pb-3 pt-1">
+            <button @click.stop="openGoalTree(goal.id)" title="ساختار درختی گام‌ها و کارها"
+                    class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition"
+                    :style="selectedGoalId === goal.id ? { background: 'rgba(255,255,255,0.18)', color: '#fff' } : { background: 'rgba(16,185,129,0.12)', color: '#10b981' }">
+              <Layers class="w-3 h-3" />
+              <span>ساختار</span>
+            </button>
+            <button @click.stop="selectGoal(goal.id)" title="نقشه راه هدف"
+                    class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition"
+                    :style="selectedGoalId === goal.id ? { background: 'rgba(255,255,255,0.18)', color: '#fff' } : { background: 'rgba(168,85,247,0.12)', color: '#a78bfa' }">
+              <MapPin class="w-3 h-3" />
+              <span>نقشه راه</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -389,12 +713,18 @@ onMounted(() => {
           <button @click="openNewSubGoalForm" class="mt-4 px-6 py-2.5 bg-purple-600 text-white font-bold rounded-xl text-xs">تعریف اولین گام</button>
         </div>
 
+        <div v-else-if="filteredSubGoals.length === 0" class="text-center py-12 rounded-3xl border-2 border-dashed border-white/10 opacity-60">
+          <Search class="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p class="font-bold text-sm">گامی با این فیلتر پیدا نشد.</p>
+          <button @click="searchQuery = ''; filterStatus = 'all'" class="mt-3 px-5 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs transition">پاک کردن فیلترها</button>
+        </div>
+
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div v-for="sg in subGoals" :key="sg.id" 
+          <div v-for="sg in filteredSubGoals" :key="sg.id"
                @click="selectSubGoalForFocus(sg)"
-               class="rounded-3xl border-2 p-6 shadow-md transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col justify-between group relative overflow-hidden" 
+               class="rounded-3xl border-2 p-6 shadow-md transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
                :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
-            
+
             <div>
               <div class="flex items-start justify-between gap-4 mb-3">
                 <div>
@@ -426,7 +756,7 @@ onMounted(() => {
             <div class="flex items-center justify-between gap-2 pt-3 border-t" :style="{ borderColor: 'var(--border)' }" @click.stop>
               <button @click="selectSubGoalForFocus(sg)" class="px-3 py-1.5 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1.5">
                 <Eye class="w-3.5 h-3.5 text-amber-400" />
-                <span>تمرکز و تسک‌ها</span>
+                <span>تمرکز و کارها</span>
               </button>
 
               <button @click="goToTasks(sg.id, selectedGoalId)" class="px-3.5 py-1.5 rounded-xl font-bold text-xs text-white transition flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600">
@@ -485,7 +815,7 @@ onMounted(() => {
         <div class="space-y-4 mb-8">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-lg font-black text-white flex items-center gap-2">
-              <ListTodo class="w-5 h-5 text-purple-400" /> تسک‌های مربوط به این گام
+              <ListTodo class="w-5 h-5 text-purple-400" /> کارهای مربوط به این گام
             </h4>
             <button @click="goToTasks(selectedSubGoal.id, selectedGoalId)" class="text-xs text-purple-400 hover:underline font-bold">
               مدیریت پیشرفته در اتاق عملیات ➔
@@ -493,7 +823,7 @@ onMounted(() => {
           </div>
 
           <div v-if="!selectedSubGoal.tasks || selectedSubGoal.tasks.length === 0" class="text-center py-8 rounded-2xl bg-white/5 border border-white/10 opacity-60">
-            هیچ تسکی برای این گام ثبت نشده است.
+            هیچ کاری برای این گام ثبت نشده است.
           </div>
 
           <div v-else class="space-y-3">
@@ -518,7 +848,7 @@ onMounted(() => {
 
         <div class="flex items-center justify-between gap-4 pt-4 border-t border-white/10">
           <button @click="goToTasks(selectedSubGoal.id, selectedGoalId)" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs transition flex items-center gap-2">
-            <span>انتقال تسک‌ها به اتاق عملیات</span>
+            <span>انتقال کارها به اتاق عملیات</span>
             <span>➔</span>
           </button>
 
@@ -541,6 +871,169 @@ onMounted(() => {
 
     <!-- Task Modal Connector -->
     <TaskFormModal v-model="showTaskModal" :form="taskForm" :categories="categories" :goals="goals" :sub-goals="subGoals" :editing-task="editingTask" :is-loading="isLoading" @save="saveTask" />
+
+    <!-- 🌳 Modal ساختار درختی هدف فعال -->
+    <Teleport to="body">
+      <div v-if="treeModalOpen" class="fixed inset-0 z-[200] flex items-center justify-center p-3 md:p-6 bg-black/80 backdrop-blur-md" @click.self="treeModalOpen = false">
+        <div class="w-full max-w-3xl max-h-[88vh] rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col"
+             style="background: linear-gradient(180deg, #0f172a 0%, #020617 100%);">
+
+          <!-- هدر modal -->
+          <div class="px-5 md:px-6 py-4 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                <Layers class="w-5 h-5 text-emerald-300" />
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-base md:text-lg font-black text-white flex items-center gap-2">
+                  ساختار درختی هدف
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-white/10 font-bold opacity-70">
+                    {{ subGoals.length }} گام • {{ overallStats.totalTasks }} کار
+                  </span>
+                </h3>
+                <p class="text-[10px] opacity-60 font-bold truncate">{{ activeGoal?.title }}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button @click="expandedNodes = {}" title="بستن همه شاخه‌ها"
+                      class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition">
+                بستن همه
+              </button>
+              <button @click="treeModalOpen = false" title="بستن"
+                      class="w-9 h-9 rounded-lg hover:bg-white/10 transition flex items-center justify-center text-white/60 hover:text-white">
+                <X class="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <!-- بدنه modal: ساختار درختی -->
+          <div class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6">
+
+            <!-- حالت خالی: بدون گام -->
+            <div v-if="subGoals.length === 0" class="text-center py-16 opacity-60">
+              <ListTodo class="w-14 h-14 mx-auto mb-3 opacity-40 text-white/40" />
+              <p class="font-bold text-sm text-white/70">هنوز گامی برای این هدف تعریف نشده است.</p>
+              <button @click="treeModalOpen = false; openNewSubGoalForm()"
+                      class="mt-4 px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition">
+                تعریف اولین گام
+              </button>
+            </div>
+
+            <!-- ساختار درختی -->
+            <div v-else class="space-y-1">
+              <!-- ریشه: خود هدف -->
+              <div class="flex items-center gap-2.5 py-2.5 px-3 rounded-xl bg-gradient-to-l from-purple-500/15 to-transparent border border-purple-500/20">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                     :style="{ background: 'var(--accent)' }">
+                  <Target class="w-4 h-4 text-white" />
+                </div>
+                <span class="text-sm font-black text-white truncate flex-1">{{ activeGoal?.title }}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+                  {{ overallStats.overallProgress }}%
+                </span>
+              </div>
+
+              <!-- اتصال ریشه به شاخه‌ها -->
+              <div class="mr-4 border-r-2 border-purple-500/30 pr-4 space-y-1.5 mt-1">
+                <div v-for="(sg, sgIdx) in subGoals" :key="'tree-' + sg.id">
+                  <!-- گره گام -->
+                  <div class="flex items-center gap-2 py-2 px-2.5 rounded-lg hover:bg-white/5 transition group">
+                    <!-- دکمه باز/بستن -->
+                    <button @click="toggleSubGoalNode(sg.id)"
+                            class="w-5 h-5 flex items-center justify-center flex-shrink-0 rounded hover:bg-white/10 transition"
+                            :class="(expandedNodes[sg.id] !== false) ? 'rotate-90' : ''">
+                      <ChevronRight class="w-3.5 h-3.5 text-white/60" />
+                    </button>
+                    <!-- آیکون گام -->
+                    <div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
+                         :style="{ background: subGoalProgress(sg) >= 100 ? 'rgba(34,197,94,0.3)' : subGoalProgress(sg) > 0 ? 'rgba(168,85,247,0.3)' : 'rgba(99,102,241,0.3)' }">
+                      <ListTodo class="w-4 h-4"
+                                :class="subGoalProgress(sg) >= 100 ? 'text-emerald-300' : subGoalProgress(sg) > 0 ? 'text-purple-300' : 'text-blue-300'" />
+                    </div>
+                    <!-- شماره + عنوان -->
+                    <span class="text-xs font-bold text-white flex-1 truncate" :title="sg.title">
+                      <span class="opacity-50 ml-1">{{ sgIdx + 1 }}.</span>{{ sg.title }}
+                    </span>
+                    <!-- نشانگر تعداد -->
+                    <span class="text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1"
+                          :style="{ background: 'rgba(255,255,255,0.05)' }">
+                      <span class="text-emerald-300">{{ (sg.tasks || []).filter(t => t.is_completed).length }}</span>
+                      <span class="opacity-40">/</span>
+                      <span class="text-white/70">{{ (sg.tasks || []).length }}</span>
+                    </span>
+                    <!-- نوار پیشرفت کوچک -->
+                    <div class="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden hidden sm:block">
+                      <div class="h-full transition-all"
+                           :class="subGoalProgress(sg) >= 100 ? 'bg-emerald-400' : 'bg-purple-400'"
+                           :style="{ width: subGoalProgress(sg) + '%' }"></div>
+                    </div>
+                    <!-- درصد -->
+                    <span class="text-[11px] font-black w-10 text-left"
+                          :class="subGoalProgress(sg) >= 100 ? 'text-emerald-300' : 'text-white/70'">
+                      {{ subGoalProgress(sg) }}%
+                    </span>
+                  </div>
+
+                  <!-- کارهای زیرمجموعه -->
+                  <div v-if="expandedNodes[sg.id] !== false && sg.tasks && sg.tasks.length > 0"
+                       class="mr-8 border-r-2 border-emerald-500/20 pr-4 mt-1 mb-2 space-y-0.5">
+                    <div v-for="t in sg.tasks" :key="'task-' + t.id"
+                         class="flex items-center gap-2 py-1.5 px-2.5 rounded-lg hover:bg-white/5 transition">
+                      <!-- چک‌باکس -->
+                      <div class="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition"
+                           :class="t.is_completed ? 'bg-emerald-500 border-emerald-500' : 'border-white/30'">
+                        <Check v-if="t.is_completed" class="w-2.5 h-2.5 text-white" :stroke-width="3" />
+                      </div>
+                      <!-- عنوان -->
+                      <span class="text-[11px] flex-1 truncate"
+                            :class="t.is_completed ? 'line-through text-white/40' : 'text-white/85'">
+                        {{ t.title }}
+                      </span>
+                      <!-- نوع کار: ساده یا دوره‌ای -->
+                      <span v-if="t.recurrence_type && t.recurrence_type !== 'none'"
+                            :title="`کار دوره‌ای (${recurrenceLabel(t.recurrence_type)})`"
+                            class="text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 cursor-help flex-shrink-0"
+                            style="background: rgba(168,85,247,0.15); color: #c4b5fd;">
+                        <RotateCw class="w-2.5 h-2.5" />
+                        <span>{{ recurrenceLabel(t.recurrence_type) }}</span>
+                      </span>
+                      <span v-else title="کار ساده"
+                            class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 cursor-help"
+                            style="background: rgba(99,102,241,0.12);">
+                        <Circle class="w-2 h-2" style="color: #a5b4fc;" />
+                      </span>
+                      <!-- اولویت -->
+                      <span v-if="t.priority > 0" class="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                            :style="{ background: t.priority >= 2 ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)', color: t.priority >= 2 ? '#fca5a5' : '#fcd34d' }">
+                        {{ t.priority >= 2 ? 'فوری' : 'متوسط' }}
+                      </span>
+                      <!-- تاریخ سررسید (شمسی) -->
+                      <span v-if="t.due_date" :title="`سررسید: ${formatDate(t.due_date)}`"
+                            class="text-[9px] opacity-70 font-mono hidden md:inline-flex items-center gap-1 cursor-help"
+                            :style="{ color: 'var(--text-secondary)' }">
+                        <Calendar class="w-3 h-3 opacity-60" />
+                        <span>سررسید: {{ formatDate(t.due_date) }}</span>
+                      </span>
+                    </div>
+                  </div>
+                  <!-- پیام خالی بودن کار -->
+                  <div v-else-if="expandedNodes[sg.id] !== false"
+                       class="mr-8 pr-4 py-1.5 text-[10px] opacity-50 italic">
+                    بدون کار
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- فوتر modal: راهنما -->
+          <div class="px-5 md:px-6 py-3 border-t border-white/10 flex items-center justify-between text-[10px] opacity-60 flex-shrink-0">
+            <span class="font-bold">برای بستن: ESC یا کلیک بیرون</span>
+            <span class="font-bold hidden sm:inline">{{ subGoals.length }} گام • {{ overallStats.totalTasks }} کار</span>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
   </div>
 </template>

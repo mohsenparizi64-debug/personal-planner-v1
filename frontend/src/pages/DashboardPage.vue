@@ -26,14 +26,14 @@ const analyticsLoading = ref(false)
 // 📱 تب فعال موبایل (فقط در صفحه‌های کوچک نمایش داده میشه)
 const mobileTab = ref('today') // 'today' | 'overdue' | 'goals' | 'ideas'
 
-// 📊 روز انتخاب‌شده برای نمایش popup تفکیک تسک‌ها
+// 📊 روز انتخاب‌شده برای نمایش popup تفکیک کارها
 const selectedDay = ref(null)
 function openDayDetail(day) {
   // toggle: اگه همین روز بازه، ببند؛ وگرنه باز کن
   selectedDay.value = (selectedDay.value && selectedDay.value.date === day.date) ? null : day
 }
 
-// مودال مدیریت امنیتی تسک‌های امروز
+// مودال مدیریت امنیتی کارهای امروز
 const showTaskModal = ref(false)
 const selectedTaskForModal = ref(null)
 
@@ -91,7 +91,7 @@ const toggleAnalyticsView = () => {
   }
 }
 
-// مدیریت امنیتی کلیک روی تسک‌های امروز
+// مدیریت امنیتی کلیک روی کارهای امروز
 const openTaskModal = (task) => {
   selectedTaskForModal.value = { ...task }
   showTaskModal.value = true
@@ -110,7 +110,7 @@ const confirmToggleTask = async () => {
     showTaskModal.value = false
     fetchDashboard()
   } catch (e) {
-    alert('خطا در بروزرسانی وضعیت تسک')
+    alert('خطا در بروزرسانی وضعیت کار')
   }
 }
 
@@ -123,7 +123,7 @@ const extendToToday = async (task) => {
     })
     fetchDashboard()
   } catch (e) {
-    alert('خطا در تمدید مهلت تسک')
+    alert('خطا در تمدید مهلت کار')
   }
 }
 
@@ -141,7 +141,7 @@ const addQuickTask = async () => {
     quickTaskTitle.value = ''
     fetchDashboard()
   } catch (e) {
-    alert('خطا در ثبت تسک سریع')
+    alert('خطا در ثبت کار سریع')
   }
 }
 
@@ -309,7 +309,7 @@ onMounted(() => {
           <h3 class="text-base font-black text-white flex items-center gap-2"><Target class="w-5 h-5 text-purple-400" /> پیشرفت اهداف کلان در {{ selectedPeriodDays }} روز گذشته</h3>
           <div class="space-y-3">
             <div v-for="g in analyticsData.goal_analytics" :key="g.goal_id" class="p-3 bg-white/5 rounded-2xl border border-white/5 space-y-1">
-              <div class="flex justify-between text-xs font-bold"><span class="text-white">{{ g.title }}</span><span class="text-purple-400">{{ g.completed_tasks }} تسک</span></div>
+              <div class="flex justify-between text-xs font-bold"><span class="text-white">{{ g.title }}</span><span class="text-purple-400">{{ g.completed_tasks }} کار</span></div>
               <div class="w-full h-2 bg-black/30 rounded-full overflow-hidden"><div class="h-full bg-purple-500" :style="{ width: Math.min(100, (g.completed_tasks / (g.total_tasks || 1)) * 100) + '%' }"></div></div>
             </div>
           </div>
@@ -411,17 +411,17 @@ onMounted(() => {
             <div class="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/20">
               <p class="text-[10px] font-bold" :style="{ color: 'var(--text-secondary)' }">مجموع هفته</p>
               <p class="text-lg sm:text-xl font-black text-blue-300 mt-0.5">{{ weeklyStats.total }}</p>
-              <p class="text-[9px] text-blue-400/70 font-bold">تسک تکمیل‌شده</p>
+              <p class="text-[9px] text-blue-400/70 font-bold">کار تکمیل‌شده</p>
             </div>
             <div class="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20">
               <p class="text-[10px] font-bold" :style="{ color: 'var(--text-secondary)' }">میانگین روزانه</p>
               <p class="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">{{ weeklyStats.avg }}</p>
-              <p class="text-[9px] text-emerald-400/70 font-bold">تسک در روز</p>
+              <p class="text-[9px] text-emerald-400/70 font-bold">کار در روز</p>
             </div>
             <div class="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
               <p class="text-[10px] font-bold" :style="{ color: 'var(--text-secondary)' }">بهترین روز</p>
               <p class="text-sm sm:text-base font-black text-amber-300 mt-0.5 truncate">{{ weeklyStats.bestDay }}</p>
-              <p class="text-[9px] text-amber-400/70 font-bold">{{ weeklyStats.bestCount }} تسک</p>
+              <p class="text-[9px] text-amber-400/70 font-bold">{{ weeklyStats.bestCount }} کار</p>
             </div>
             <div class="p-2.5 sm:p-3 rounded-xl border" :class="weeklyStats.trend > 0 ? 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/20' : weeklyStats.trend < 0 ? 'bg-gradient-to-br from-rose-500/10 to-red-500/10 border-rose-500/20' : 'bg-gradient-to-br from-slate-500/10 to-gray-500/10 border-slate-500/20'">
               <p class="text-[10px] font-bold" :style="{ color: 'var(--text-secondary)' }">روند هفته</p>
@@ -517,11 +517,11 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- نمودار ۲: نمودار سه‌بعدی (3D) تفکیک انواع تسک‌ها -->
+        <!-- نمودار ۲: نمودار سه‌بعدی (3D) تفکیک انواع کارها -->
         <div class="glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 flex flex-col">
           <div class="flex items-center justify-between mb-3 sm:mb-4">
             <h3 class="text-base sm:text-lg font-black flex items-center gap-2" :style="{ color: 'var(--text-primary)' }">
-              <Flame class="w-5 h-5 text-amber-400" /> تفکیک تسک‌ها
+              <Flame class="w-5 h-5 text-amber-400" /> تفکیک کارها
             </h3>
             <button
               @click="toggleAnalyticsView"
@@ -535,10 +535,10 @@ onMounted(() => {
 
           <!-- نمودار دو Stack Bar عمودی (دماسنج) - شفاف و واضح -->
           <div class="relative flex-1 flex flex-col my-2">
-            <!-- عنوان بالا: کل تسک‌ها -->
+            <!-- عنوان بالا: کل کارها -->
             <div class="text-center mb-3">
               <p class="text-3xl sm:text-4xl font-black" :style="{ color: 'var(--text-primary)' }">{{ dashboardData.summary.total_tasks_count }}</p>
-              <p class="text-[10px] sm:text-xs font-bold" :style="{ color: 'var(--text-secondary)' }">کل تسک‌های ثبت‌شده</p>
+              <p class="text-[10px] sm:text-xs font-bold" :style="{ color: 'var(--text-secondary)' }">کل کارهای ثبت‌شده</p>
               <div class="flex items-center justify-center gap-2 mt-1.5 text-[10px] font-black">
                 <span class="px-2 py-0.5 rounded-full" :style="{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }">
                   ✓ {{ totalCompletedCount }} تکمیل‌شده
@@ -646,7 +646,7 @@ onMounted(() => {
               <router-link to="/tasks" class="text-[11px] sm:text-xs text-blue-400 hover:underline flex items-center gap-1">اتاق عملیات <ArrowRight class="w-3 h-3 sm:w-3.5 sm:h-3.5" /></router-link>
             </div>
 
-            <div v-if="dashboardData.today_tasks.length === 0" class="text-center py-4 sm:py-6 text-xs" :style="{ color: 'var(--text-secondary)' }">هیچ تسکی برای امروز ثبت نشده است.</div>
+            <div v-if="dashboardData.today_tasks.length === 0" class="text-center py-4 sm:py-6 text-xs" :style="{ color: 'var(--text-secondary)' }">هیچ کاری برای امروز ثبت نشده است.</div>
             <div v-else class="space-y-2 max-h-48 overflow-y-auto pr-1">
               <div v-for="task in dashboardData.today_tasks" :key="task.id" @click="openTaskModal(task)" class="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/5 hover:bg-white/10 transition cursor-pointer flex items-center justify-between border border-white/5">
                 <div class="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -670,7 +670,7 @@ onMounted(() => {
               <h3 class="text-base font-black flex items-center gap-2" :style="{ color: 'var(--text-primary)' }"><ListTodo class="w-5 h-5 text-blue-400" /> کارهای امروز</h3>
               <span class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-bold">{{ dashboardData.today_tasks.length }} مورد</span>
             </div>
-            <div v-if="dashboardData.today_tasks.length === 0" class="text-center py-6 text-xs" :style="{ color: 'var(--text-secondary)' }">هیچ تسکی برای امروز ثبت نشده است.</div>
+            <div v-if="dashboardData.today_tasks.length === 0" class="text-center py-6 text-xs" :style="{ color: 'var(--text-secondary)' }">هیچ کاری برای امروز ثبت نشده است.</div>
             <div v-else class="space-y-2 max-h-72 overflow-y-auto pr-1">
               <div v-for="task in dashboardData.today_tasks" :key="task.id" @click="openTaskModal(task)" class="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer flex items-center justify-between border border-white/5">
                 <div class="flex items-center gap-2.5 min-w-0 flex-1">
@@ -681,7 +681,7 @@ onMounted(() => {
             </div>
           </div>
           <form @submit.prevent="addQuickTask" class="mt-3 pt-3 border-t border-white/10 flex items-center gap-2">
-            <input v-model="quickTaskTitle" type="text" placeholder="ثبت سریع تسک جدید..." class="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-purple-500" :style="{ color: 'var(--text-primary)' }" />
+            <input v-model="quickTaskTitle" type="text" placeholder="ثبت سریع کار جدید..." class="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-purple-500" :style="{ color: 'var(--text-primary)' }" />
             <button type="submit" class="p-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition"><Plus class="w-4 h-4" /></button>
           </form>
         </div>
@@ -818,17 +818,17 @@ onMounted(() => {
 
     </div>
 
-    <!-- مودال مدیریت امنیتی تسک انتخابی از لیست امروز -->
+    <!-- مودال مدیریت امنیتی کار انتخابی از لیست امروز -->
     <Teleport to="body">
       <div v-if="showTaskModal && selectedTaskForModal" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
         <div class="w-full max-w-md glass-card p-6 rounded-3xl border border-white/20 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto custom-scrollbar">
           <div class="flex justify-between items-center border-b border-white/10 pb-3">
-            <h3 class="text-base font-bold text-white flex items-center gap-2"><ShieldAlert class="w-5 h-5 text-amber-400" /> مدیریت امنیتی تسک</h3>
+            <h3 class="text-base font-bold text-white flex items-center gap-2"><ShieldAlert class="w-5 h-5 text-amber-400" /> مدیریت امنیتی کار</h3>
             <button @click="showTaskModal = false" class="text-gray-400 hover:text-white"><X class="w-5 h-5" /></button>
           </div>
 
           <div class="space-y-3 text-right">
-            <div><label class="block text-[11px] text-gray-400">عنوان تسک:</label><p class="text-sm font-black text-white mt-1">{{ selectedTaskForModal.title }}</p></div>
+            <div><label class="block text-[11px] text-gray-400">عنوان کار:</label><p class="text-sm font-black text-white mt-1">{{ selectedTaskForModal.title }}</p></div>
             <div><label class="block text-[11px] text-gray-400">هدف مرتبط:</label><p class="text-xs font-bold text-purple-300 mt-1">{{ selectedTaskForModal.goal_title }}</p></div>
             <div><label class="block text-[11px] text-gray-400">دسته‌بندی:</label><span class="inline-block px-2.5 py-1 rounded bg-white/10 text-xs font-bold text-gray-200 mt-1">{{ selectedTaskForModal.category || 'عمومی' }}</span></div>
           </div>
@@ -836,7 +836,7 @@ onMounted(() => {
           <div class="flex gap-3 pt-4 border-t border-white/10">
             <button @click="confirmToggleTask" class="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5">
               <CheckCircle class="w-4 h-4" />
-              <span>{{ selectedTaskForModal.is_completed ? 'علامت‌گذاری به عنوان انجام‌نشده' : 'تایید و تکمیل تسک' }}</span>
+              <span>{{ selectedTaskForModal.is_completed ? 'علامت‌گذاری به عنوان انجام‌نشده' : 'تایید و تکمیل کار' }}</span>
             </button>
             <button @click="showTaskModal = false" class="py-3 px-4 bg-white/10 hover:bg-white/20 text-gray-300 font-bold text-xs rounded-xl">انصراف</button>
           </div>

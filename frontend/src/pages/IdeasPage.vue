@@ -186,11 +186,11 @@ const convertToGoal = async (idea) => {
 const convertToTask = async (idea) => {
   try {
     await api.post(`/ideas/${idea.id}/convert-to-task`)
-    alert('⚡ ایده با موفقیت به تسک اجرایی منتقل شد!')
+    alert('⚡ ایده با موفقیت به کار اجرایی منتقل شد!')
     fetchIdeas()
     router.push('/tasks')
   } catch (error) {
-    alert('خطا در تبدیل ایده به تسک')
+    alert('خطا در تبدیل ایده به کار')
   }
 }
 
@@ -217,7 +217,7 @@ const getStatusBadge = (status) => {
           </div>
           بانک ایده‌ها و جرقه‌های ذهنی
         </h1>
-        <p class="text-sm text-gray-400 mt-2">ثبت سریع ایده‌ها، پرورش، و تبدیل هوشمندانه به اهداف و تسک‌های اجرایی</p>
+        <p class="text-sm text-gray-400 mt-2">ثبت سریع ایده‌ها، پرورش، و تبدیل هوشمندانه به اهداف و کارهای اجرایی</p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -326,7 +326,7 @@ const getStatusBadge = (status) => {
           <div class="flex items-center justify-between pt-2">
             <div class="flex items-center gap-2">
               <button @click="convertToGoal(idea)" title="تبدیل به هدف کلان" class="p-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 rounded-xl transition"><Target class="w-4 h-4" /></button>
-              <button @click="convertToTask(idea)" title="تبدیل به تسک اجرایی" class="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-xl transition"><ListTodo class="w-4 h-4" /></button>
+              <button @click="convertToTask(idea)" title="تبدیل به کار اجرایی" class="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-xl transition"><ListTodo class="w-4 h-4" /></button>
             </div>
 
             <div class="flex items-center gap-1">

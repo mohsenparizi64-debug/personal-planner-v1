@@ -10,7 +10,22 @@ async def create_goal_log(db: AsyncSession, goal_id: int, owner_id: int, action:
 
 async def get_goal_logs(db: AsyncSession, owner_id: int, limit: int = 20):
     result = await db.execute(select(GoalLog).where(GoalLog.owner_id == owner_id).order_by(GoalLog.created_at.desc()).limit(limit))
-    return result.scalars().all()
+    logs = result.scalars().all()
+    # تبدیل صریح به dict برای جلوگیری از ResponseValidationError هنگام NULL
+    out = []
+    for log in logs:
+        out.append({
+            "id": log.id,
+            "goal_id": log.goal_id if log.goal_id is not None else 0,
+            "action": log.action or "",
+            "field_name": log.field_name,
+            "old_value": log.old_value,
+            "new_value": log.new_value,
+            "description": log.description,
+            "owner_id": log.owner_id,
+            "created_at": log.created_at,
+        })
+    return out
 
 async def get_goal_logs_by_goal(db: AsyncSession, goal_id: int, owner_id: int):
     result = await db.execute(select(GoalLog).where(GoalLog.goal_id == goal_id, GoalLog.owner_id == owner_id).order_by(GoalLog.created_at.desc()))

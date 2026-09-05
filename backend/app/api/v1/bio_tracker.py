@@ -75,7 +75,7 @@ async def estimate_workout_calories(
                 avalai_url,
                 headers=headers,
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": "gemini-3.1-pro-preview",
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.2
                 }
@@ -133,7 +133,7 @@ async def estimate_meal_nutrition(
                 avalai_url,
                 headers=headers,
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": "gemini-3.1-pro-preview",
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.2
                 }

@@ -69,7 +69,7 @@ const currentYear = ref(realJY)
 const currentMonth = ref(realJM)
 const selectedDayNum = ref(realJD)
 
-// داده‌های تسک‌ها
+// داده‌های کارها
 const tasks = ref([])
 const overdueTasks = ref([])
 const isLoading = ref(false)
@@ -172,7 +172,7 @@ function swapGotoType() {
   gotoDateValue.value = ''
 }
 
-// محاسبات شبکه تقویم و تسک‌ها
+// محاسبات شبکه تقویم و کارها
 const daysInCurrentMonth = computed(() => {
   if (calendarMode.value === 'gregorian') {
     // میلادی
@@ -427,7 +427,7 @@ onMounted(() => {
         <div class="flex items-center gap-3">
           <AlertTriangle class="w-5 h-5 sm:w-6 sm:h-6 text-red-400 shrink-0 animate-bounce" />
           <div>
-            <h3 class="font-black text-sm sm:text-base">توجه: {{ overdueTasks.length }} تسک عقب‌افتاده دارید</h3>
+            <h3 class="font-black text-sm sm:text-base">توجه: {{ overdueTasks.length }} کار عقب‌افتاده دارید</h3>
             <p class="text-[10px] sm:text-xs opacity-70">مهلت انجام این کارها به پایان رسیده است.</p>
           </div>
         </div>
@@ -485,7 +485,7 @@ onMounted(() => {
                   <span v-if="cell.isToday" class="text-[7px] sm:text-[9px] px-1 rounded bg-amber-500 text-black font-black">امروز</span>
                 </div>
 
-                <!-- نشانگر تسک‌ها: دایره‌های رنگی + شمارنده -->
+                <!-- نشانگر کارها: دایره‌های رنگی + شمارنده -->
                 <div class="flex justify-center items-center gap-0.5 my-0.5 min-h-[6px]">
                   <span v-for="(t, idx) in getTasksForDayObj(cell).slice(0, 3)" :key="idx"
                         class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shadow-sm"
@@ -520,7 +520,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- ۲. پنل تسک‌های روز انتخابی (۴ ستون) -->
+        <!-- ۲. پنل کارهای روز انتخابی (۴ ستون) -->
         <div class="lg:col-span-4 glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 flex flex-col justify-between text-white">
 
           <div>
@@ -540,7 +540,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- لیست تسک‌ها -->
+            <!-- لیست کارها -->
             <div v-if="tasksForSelectedDay.length === 0" class="py-12 text-center opacity-50 space-y-2">
               <Clock class="w-10 h-10 sm:w-12 sm:h-12 mx-auto" />
               <p class="text-xs sm:text-sm font-bold">هیچ برنامه‌ای برای این روز ثبت نشده</p>

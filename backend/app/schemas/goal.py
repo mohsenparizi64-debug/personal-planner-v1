@@ -43,14 +43,14 @@ class GoalRead(GoalBase):
 
 # اسکیما جهت رفع خطای ResponseValidationError در لاگ‌های تغییرات اهداف
 class GoalLogRead(BaseModel):
-    id: int
+    id: Optional[int] = None
     goal_id: Optional[int] = None  # اختیاری بودن فیلد جهت جلوگیری از کرش هنگام NULL بودن
-    action: str
+    action: Optional[str] = None
     field_name: Optional[str] = None
     old_value: Optional[str] = None
     new_value: Optional[str] = None
     description: Optional[str] = None
-    owner_id: int
+    owner_id: Optional[int] = None
     created_at: Optional[datetime] = None
 
     class Config:

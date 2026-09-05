@@ -82,7 +82,7 @@ const importBackup = async (event) => {
           <Download class="w-6 h-6 text-green-400" />
         </div>
         <h3 class="text-lg font-bold text-white mb-2">دریافت بکاپ</h3>
-        <p class="text-sm text-gray-500 mb-4">یک فایل JSON از تمام اطلاعاتت دانلود کن. این فایل شامل تسک‌ها، اهداف، مالی، فیلم‌ها، کتاب‌ها و مکان‌هاست.</p>
+        <p class="text-sm text-gray-500 mb-4">یک فایل JSON از تمام اطلاعاتت دانلود کن. این فایل شامل کارها، اهداف، مالی، فیلم‌ها، کتاب‌ها و مکان‌هاست.</p>
         <button @click="exportBackup" :disabled="isExporting"
                 class="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition disabled:opacity-50">
           {{ isExporting ? 'در حال آماده‌سازی...' : 'دانلود بکاپ 📥' }}
@@ -112,7 +112,7 @@ const importBackup = async (event) => {
       <div class="text-sm text-yellow-300">
         <p class="font-bold mb-1">نکات مهم:</p>
         <ul class="list-disc mr-4 space-y-1 text-yellow-200/80">
-          <li>بکاپ شامل <strong>همه</strong> ماژول‌هاست (تسک، هدف، مالی، فیلم، کتاب، مکان)</li>
+          <li>بکاپ شامل <strong>همه</strong> ماژول‌هاست (کار، هدف، مالی، فیلم، کتاب، مکان)</li>
           <li>فایل بکاپ با فرمت JSON ذخیره میشه و قابل مشاهده با ویرایشگر متنه</li>
           <li>هنگام بازیابی، <strong>همه دیتای فعلی حذف</strong> و با بکاپ جایگزین میشه</li>
           <li>پسورد شما توی بکاپ ذخیره <strong>نمیشه</strong> - فقط دیتای برنامه</li>

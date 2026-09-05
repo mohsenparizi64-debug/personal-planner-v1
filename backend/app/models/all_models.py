@@ -52,6 +52,7 @@ class Task(Base, TimestampMixin):
     priority = Column(Integer, default=0)
     is_completed = Column(Boolean, default=False)
     auto_reschedule = Column(Boolean, default=True)
+    suggested_due_date = Column(Date, nullable=True)  # 🆕 تاریخ پیشنهادی برای انجام (تمدید)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     owner = relationship("User")

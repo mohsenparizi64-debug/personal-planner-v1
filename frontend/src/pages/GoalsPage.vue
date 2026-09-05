@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { Plus, Trash2, Edit3, Check, X, Target, Calendar, Flag, AlertTriangle, Zap, History, Clock, ArrowRight, Eye, Sparkles, ListTodo, PieChart } from 'lucide-vue-next'
 import api from '@/services/api'
@@ -9,7 +9,7 @@ import { useRouter } from 'vue-router'
 
 const themeStore = useThemeStore()
 const goals = ref([])
-const allTasks = ref([])  // همه تسک‌ها (برای progress واقعی)
+const allTasks = ref([])  // همه کارها (برای progress واقعی)
 const recentLogs = ref([])
 const showForm = ref(false)
 const showLogs = ref(false)
@@ -19,23 +19,107 @@ const isLoading = ref(false)
 const validationErrors = ref({})
 const router = useRouter()
 
+// 🌌 نمایش سه‌بعدی در حالت تمرکز
+const focusSubGoals = ref([])
+const focusTasksBySub = ref({}) // map: subGoalId -> tasks[]
+const focusLoading = ref(false)
+const rotateY = ref(0)              // زاویه چرخش صحنه (درجه)
+const rotateX = ref(-12)            // کمی خم به بالا برای حس سه‌بعدی
+const isDragging = ref(false)
+const autoRotate = ref(true)        // چرخش خودکار فعال
+let dragStartX = 0
+let dragStartY = 0
+let rotateStartY = 0
+let rotateStartX = 0
+let autoRotateRAF = null
+
+const fetchFocusRoadmap = async (goalId) => {
+  focusLoading.value = true
+  try {
+    const res = await api.get(`/roadmap/goal/${goalId}/subgoals`)
+    focusSubGoals.value = (res.data || []).map(sg => ({
+      ...sg,
+      tasks: sg.tasks || []
+    }))
+    // ساخت map برای دسترسی سریع
+    const map = {}
+    focusSubGoals.value.forEach(sg => { map[sg.id] = sg.tasks })
+    focusTasksBySub.value = map
+  } catch (e) {
+    focusSubGoals.value = []
+    focusTasksBySub.value = {}
+  } finally {
+    focusLoading.value = false
+  }
+}
+
+const startAutoRotate = () => {
+  const tick = () => {
+    if (autoRotate.value && !isDragging.value) {
+      rotateY.value = (rotateY.value + 0.18) % 360
+    }
+    autoRotateRAF = requestAnimationFrame(tick)
+  }
+  autoRotateRAF = requestAnimationFrame(tick)
+}
+
+const stopAutoRotate = () => {
+  if (autoRotateRAF) cancelAnimationFrame(autoRotateRAF)
+  autoRotateRAF = null
+}
+
+const onPointerDown = (e) => {
+  isDragging.value = true
+  autoRotate.value = false
+  const t = e.touches ? e.touches[0] : e
+  dragStartX = t.clientX
+  dragStartY = t.clientY
+  rotateStartX = rotateX.value
+  rotateStartY = rotateY.value
+}
+const onPointerMove = (e) => {
+  if (!isDragging.value) return
+  e.preventDefault?.()
+  const t = e.touches ? e.touches[0] : e
+  const dx = t.clientX - dragStartX
+  const dy = t.clientY - dragStartY
+  rotateY.value = (rotateStartY + dx * 0.4) % 360
+  // محدود کردن چرخش X برای جلوگیری از واژگونی
+  rotateX.value = Math.max(-45, Math.min(45, rotateStartX - dy * 0.3))
+}
+const onPointerUp = () => {
+  if (!isDragging.value) return
+  isDragging.value = false
+  // بعد از ۴ ثانیه بدون تعامل، چرخش خودکار برگردد
+  setTimeout(() => { if (!isDragging.value) autoRotate.value = true }, 4000)
+}
+const toggleAutoRotate = () => { autoRotate.value = !autoRotate.value }
+
 const goToRoadmap = (goalId) => {
   sessionStorage.setItem('active_goal_id', goalId)
   router.push('/roadmap')
 }
 
-// لینک سریع به تسک‌های یک هدف (با فیلتر خودکار)
+// لینک سریع به کارهای یک هدف (با فیلتر خودکار)
 const goToTasks = (goalId) => {
   router.push({ path: '/tasks', query: { goal: goalId } })
 }
 
 // انتخاب هدف برای حالت تمرکز (Spotlight Focus)
-const selectGoalForFocus = (goal) => {
+const selectGoalForFocus = async (goal) => {
   selectedGoal.value = goal
+  await fetchFocusRoadmap(goal.id)
+  rotateY.value = 0
+  rotateX.value = -12
+  autoRotate.value = true
+  startAutoRotate()
 }
 
 const closeFocusMode = () => {
   selectedGoal.value = null
+  stopAutoRotate()
+  focusSubGoals.value = []
+  focusTasksBySub.value = {}
 }
 
 const form = ref({
@@ -72,11 +156,11 @@ const fetchAllTasks = async () => {
     const response = await api.get('/tasks')
     allTasks.value = response.data
   } catch (error) {
-    console.error('خطا در گرفتن تسک‌ها', error)
+    console.error('خطا در گرفتن کارها', error)
   }
 }
 
-// 📊 محاسبه progress واقعی از تسک‌ها (نه فیلد progress_percent که دستیه)
+// 📊 محاسبه progress واقعی از کارها (نه فیلد progress_percent که دستیه)
 const progressByGoal = (goalId) => {
   const goalTasks = allTasks.value.filter(t => t.goal_id === goalId)
   if (goalTasks.length === 0) return 0
@@ -124,7 +208,7 @@ const donutSegments = computed(() => {
   return segs
 })
 
-// 📅 Timeline: تسک‌های ۳۰ روز آینده (سررسید نزدیک)
+// 📅 Timeline: کارهای ۳۰ روز آینده (سررسید نزدیک)
 const upcomingTasks = computed(() => {
   const now = new Date()
   const today = now.toISOString().split('T')[0]
@@ -139,7 +223,7 @@ const upcomingTasks = computed(() => {
     .slice(0, 10)
 })
 
-// 🚀 Quick action: مستقیم به صفحه تسک جدید (با goal context)
+// 🚀 Quick action: مستقیم به صفحه کار جدید (با goal context)
 const quickAddTask = (goalId) => {
   router.push({ path: '/tasks', query: { goal: goalId, add: '1' } })
 }
@@ -153,6 +237,37 @@ const smartSuggestion = computed(() => {
   if (candidates.length === 0) return null
   return candidates[0]
 })
+
+// 🌌 محاسبه موقعیت گره‌های سه‌بعدی برای نمایش در حالت تمرکز
+// چیدمان: گام‌ها به‌صورت دایره‌ای روی یک استوانه در فاصله‌های z متفاوت
+// لایه‌بندی: هر ۶ گام در یک «ردیف» عمق
+const focusSceneLayers = computed(() => {
+  const layers = []
+  const perLayer = 6
+  for (let i = 0; i < focusSubGoals.value.length; i += perLayer) {
+    layers.push(focusSubGoals.value.slice(i, i + perLayer))
+  }
+  return layers
+})
+
+const subGoalProgress = (sg) => {
+  const tasks = (sg.tasks || [])
+  if (tasks.length === 0) return 0
+  const done = tasks.filter(t => t.is_completed).length
+  return Math.round((done / tasks.length) * 100)
+}
+
+// موقعیت هر گره گام در دایره (theta = زاویه روی دایره)
+const nodePosition = (indexInLayer, layerIndex, totalInLayer) => {
+  const radius = 180                              // شعاع دایره
+  const layerSpacing = 130                        // فاصله لایه‌ها
+  const angle = (360 / Math.max(totalInLayer, 1)) * indexInLayer
+  const rad = (angle * Math.PI) / 180
+  const x = Math.cos(rad) * radius
+  const z = Math.sin(rad) * radius
+  const y = layerIndex * layerSpacing
+  return { x, y, z, angle }
+}
 
 const fetchLogs = async () => {
   try {
@@ -289,6 +404,10 @@ onMounted(() => {
   fetchAllTasks()  // برای progress واقعی
   fetchLogs()
 })
+
+onUnmounted(() => {
+  stopAutoRotate()
+})
 </script>
 
 <template>
@@ -346,11 +465,11 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 📅 Timeline: تسک‌های پیش‌رو (۳۰ روز آینده) -->
+    <!-- 📅 Timeline: کارهای پیش‌رو (۳۰ روز آینده) -->
     <div v-if="upcomingTasks.length > 0" class="glass-card p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-white/10 mb-5">
       <h3 class="text-sm sm:text-base font-black mb-3 flex items-center gap-2">
         <Calendar class="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
-        سررسیدهای پیش‌رو ({{ upcomingTasks.length }} تسک)
+        سررسیدهای پیش‌رو ({{ upcomingTasks.length }} کار)
       </h3>
       <div class="space-y-2">
         <div v-for="t in upcomingTasks" :key="t.id"
@@ -362,7 +481,7 @@ onMounted(() => {
                  'bg-amber-500': new Date(t.dueDateStr) - new Date() < 7*24*60*60*1000,
                  'bg-blue-500': true
                }"></div>
-          <!-- عنوان تسک -->
+          <!-- عنوان کار -->
           <div class="flex-1 min-w-0">
             <p class="text-xs sm:text-sm font-bold truncate">{{ t.title }}</p>
             <p class="text-[10px] sm:text-xs opacity-60 truncate">
@@ -390,7 +509,7 @@ onMounted(() => {
           <p class="text-xs sm:text-sm leading-relaxed text-amber-200/90 line-clamp-2">{{ smartSuggestion.next_step }}</p>
           <div class="flex items-center gap-2 mt-2">
             <button @click="quickAddTask(smartSuggestion.id)" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-[10px] sm:text-xs flex items-center gap-1">
-              <Plus class="w-3 h-3" /> افزودن تسک
+              <Plus class="w-3 h-3" /> افزودن کار
             </button>
             <span class="text-[10px] opacity-50">پیشرفت فعلی: {{ progressByGoal(smartSuggestion.id) }}٪</span>
           </div>
@@ -590,84 +709,84 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- 🌟 چیدمان اصلی دو ستونه اهداف (Two-Column Grid) -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+    <!-- 🌟 چیدمان اصلی اهداف (ریسپانسیو حرفه‌ای: موبایل تک ستونه استاندارد، تبلت ۲ ستونه، دسکتاپ ۳ ستونه با کارت‌های کامپکت و متناسب) -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 relative">
       <div v-for="goal in goals" :key="goal.id"
            @click="selectGoalForFocus(goal)"
-           class="rounded-3xl p-6 transition-all duration-300 border shadow-md hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+           class="rounded-3xl p-5 sm:p-6 transition-all duration-300 border shadow-md hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
            :class="themeStore.currentTheme === 'persian-classic' ? 'card-ornament' : themeStore.currentTheme === 'cyber-digital' ? 'neon-border' : ''"
            :style="{ background: 'var(--bg-card)', borderColor: 'var(--border)' }">
         
         <div>
           <!-- Header -->
-          <div class="flex items-start justify-between mb-4">
-            <div class="flex-1">
-              <div class="flex items-center gap-2.5 mb-2">
-                <Target class="w-6 h-6 group-hover:rotate-12 transition-transform" :style="{ color: 'var(--accent)' }" />
-                <h3 class="text-lg font-black group-hover:text-purple-400 transition" :style="{ color: 'var(--text-primary)' }">{{ goal.title }}</h3>
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1 min-w-0 pr-2">
+              <div class="flex items-center gap-2 mb-1.5">
+                <Target class="w-5 h-5 flex-shrink-0 group-hover:rotate-12 transition-transform" :style="{ color: 'var(--accent)' }" />
+                <h3 class="text-base sm:text-lg font-black truncate group-hover:text-purple-400 transition" :style="{ color: 'var(--text-primary)' }">{{ goal.title }}</h3>
               </div>
-              <span :class="[priorityColors[goal.priority], 'text-[11px] font-extrabold flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-lg w-fit']">
+              <span :class="[priorityColors[goal.priority], 'text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-lg w-fit']">
                 <Flag class="w-3 h-3" /> {{ priorityLabels[goal.priority] }}
               </span>
             </div>
 
-            <div class="flex gap-1" @click.stop>
-              <button @click="openEditForm(goal)" title="ویرایش" class="p-2 rounded-xl transition hover:bg-white/10 text-gray-400 hover:text-white">
+            <div class="flex gap-1 flex-shrink-0" @click.stop>
+              <button @click="openEditForm(goal)" title="ویرایش" class="p-1.5 rounded-xl transition hover:bg-white/10 text-gray-400 hover:text-white">
                 <Edit3 class="w-4 h-4" />
               </button>
-              <button @click="deleteGoal(goal.id)" title="حذف" class="p-2 rounded-xl transition hover:bg-red-500/10 text-gray-400 hover:text-red-400">
+              <button @click="deleteGoal(goal.id)" title="حذف" class="p-1.5 rounded-xl transition hover:bg-red-500/10 text-gray-400 hover:text-red-400">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          <p v-if="goal.description" :style="{ color: 'var(--text-secondary)' }" class="text-xs opacity-80 mb-4 line-clamp-2 leading-relaxed">{{ goal.description }}</p>
+          <p v-if="goal.description" :style="{ color: 'var(--text-secondary)' }" class="text-xs opacity-80 mb-3 line-clamp-2 leading-relaxed">{{ goal.description }}</p>
 
-          <!-- خلاصه فیلدها در کارت عمومی -->
-          <div class="space-y-2 border-t pt-3" :style="{ borderColor: 'var(--border)' }">
-            <div v-if="goal.next_step" class="flex items-center gap-2 text-xs font-bold" :style="{ color: 'var(--accent)' }">
-              <Check class="w-3.5 h-3.5 text-green-400" />
+          <!-- خلاصه فیلدها در کارت -->
+          <div class="space-y-1.5 border-t pt-2.5 text-xs" :style="{ borderColor: 'var(--border)' }">
+            <div v-if="goal.next_step" class="flex items-center gap-2 font-medium" :style="{ color: 'var(--accent)' }">
+              <Check class="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
               <span class="truncate">گام بعدی: {{ goal.next_step }}</span>
             </div>
-            <div v-if="goal.target_date" class="flex items-center gap-2 text-xs opacity-70" :style="{ color: 'var(--text-secondary)' }">
-              <Calendar class="w-3.5 h-3.5 text-purple-400" />
+            <div v-if="goal.target_date" class="flex items-center gap-2 opacity-70" :style="{ color: 'var(--text-secondary)' }">
+              <Calendar class="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
               <span>تحقق: {{ formatDate(goal.target_date) }}</span>
             </div>
           </div>
         </div>
 
-        <!-- دکمه‌های پایینی کارت دو ستونه -->
-        <div class="flex items-center justify-between gap-2 mt-5 pt-3 border-t" :style="{ borderColor: 'var(--border)' }" @click.stop>
-          <button @click="selectGoalForFocus(goal)" class="px-3 py-1.5 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1.5">
+        <!-- دکمه‌های پایینی کارت -->
+        <div class="flex items-center justify-between gap-1.5 mt-4 pt-3 border-t flex-wrap sm:flex-nowrap" :style="{ borderColor: 'var(--border)' }" @click.stop>
+          <button @click="selectGoalForFocus(goal)" class="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1">
             <Eye class="w-3.5 h-3.5 text-amber-400" />
-            <span>تمرکز و کامل</span>
+            <span>تمرکز</span>
           </button>
 
           <button @click="goToRoadmap(goal.id)"
-                  class="px-3.5 py-1.5 rounded-xl font-bold text-xs text-white transition flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600">
+                  class="px-3 py-1.5 rounded-xl font-bold text-[11px] text-white transition flex items-center gap-1 shadow-md hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600">
             <span>نقشه راه</span>
             <span>➔</span>
           </button>
 
-          <!-- دکمه سریع به تسک‌های این هدف -->
-          <button @click="goToTasks(goal.id)"
-                  class="px-3 py-1.5 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1.5">
+          <!-- دکمه کارها -->
+          <button @click.stop="goToTasks(goal.id)"
+                  class="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-1">
             <ListTodo class="w-3.5 h-3.5 text-emerald-400" />
-            <span>{{ completedTasksByGoal(goal.id) }}/{{ tasksCountByGoal(goal.id) }} تسک</span>
+            <span>{{ completedTasksByGoal(goal.id) }}/{{ tasksCountByGoal(goal.id) }}</span>
           </button>
 
-          <!-- 🚀 Quick add تسک جدید به این هدف -->
-          <button @click="quickAddTask(goal.id)"
-                  class="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-600/80 hover:bg-emerald-500 text-white transition flex items-center gap-1"
-                  title="افزودن سریع تسک جدید به این هدف">
+          <!-- 🚀 Quick add کار جدید -->
+          <button @click.stop="quickAddTask(goal.id)"
+                  class="px-2 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-600/80 hover:bg-emerald-500 text-white transition flex items-center gap-1"
+                  title="افزودن سریع کار">
             <Plus class="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <!-- Progress واقعی از تسک‌ها -->
+        <!-- Progress واقعی از کارها -->
         <div class="mt-3 pt-3 border-t border-white/5">
           <div class="flex items-center justify-between text-[10px] mb-1.5">
-            <span class="opacity-70 font-bold">پیشرفت واقعی (محاسبه از تسک‌ها)</span>
+            <span class="opacity-70 font-bold">پیشرفت واقعی (محاسبه از کارها)</span>
             <span class="font-black text-amber-300">{{ progressByGoal(goal.id) }}%</span>
           </div>
           <div class="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -770,6 +889,138 @@ onMounted(() => {
             </div>
           </div>
 
+        </div>
+
+        <!-- 🌌 نمایش سه‌بعدی چرخشی: گام‌ها + کارهای هدف انتخابی -->
+        <div class="mt-6 mb-4">
+          <div class="flex items-center justify-between mb-3 px-1">
+            <h3 class="text-sm font-black flex items-center gap-2 text-white">
+              <Sparkles class="w-4 h-4 text-amber-400" />
+              نقشه سه‌بعدی گام‌ها
+              <span v-if="focusSubGoals.length" class="text-[10px] opacity-60 font-bold">({{ focusSubGoals.length }} گام)</span>
+            </h3>
+            <div class="flex items-center gap-1.5">
+              <button @click="toggleAutoRotate" :title="autoRotate ? 'توقف چرخش خودکار' : 'شروع چرخش خودکار'"
+                      class="px-2.5 py-1 rounded-lg text-[10px] font-bold transition"
+                      :style="autoRotate ? { background: 'rgba(34,197,94,0.15)', color: '#22c55e' } : { background: 'rgba(255,255,255,0.05)', color: '#9ca3af' }">
+                {{ autoRotate ? '⏸ توقف' : '▶ چرخش' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- حالت بارگذاری -->
+          <div v-if="focusLoading" class="h-72 flex items-center justify-center text-white/50 text-sm rounded-3xl border border-white/10 bg-black/20">
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+              <p>در حال بارگذاری نقشه سه‌بعدی...</p>
+            </div>
+          </div>
+
+          <!-- حالت خالی -->
+          <div v-else-if="focusSubGoals.length === 0" class="h-44 flex items-center justify-center text-white/50 text-xs rounded-3xl border border-dashed border-white/10 bg-black/20">
+            هنوز گامی برای این هدف تعریف نشده است. در صفحه نقشه راه گام جدید اضافه کنید.
+          </div>
+
+          <!-- صحنه سه‌بعدی چرخشی -->
+          <div v-else
+               class="relative w-full h-[420px] rounded-3xl overflow-hidden border border-white/10 touch-none select-none"
+               style="background: radial-gradient(ellipse at center, rgba(99,102,241,0.15) 0%, rgba(15,23,42,0.95) 60%, rgba(0,0,0,0.98) 100%);"
+               @mousedown="onPointerDown"
+               @mousemove="onPointerMove"
+               @mouseup="onPointerUp"
+               @mouseleave="onPointerUp"
+               @touchstart.passive="onPointerDown"
+               @touchmove.passive="onPointerMove"
+               @touchend="onPointerUp">
+
+            <!-- راهنما -->
+            <div class="absolute top-3 right-3 z-20 text-[10px] text-white/50 font-bold flex items-center gap-1 pointer-events-none">
+              <span>👆 برای چرخش بکشید</span>
+            </div>
+
+            <!-- نشانگر محور چرخش -->
+            <div class="absolute bottom-3 left-3 z-20 text-[9px] text-white/40 font-mono pointer-events-none">
+              چرخش: {{ Math.round(rotateY) }}°
+            </div>
+
+            <!-- صحنه اصلی با perspective -->
+            <div class="absolute inset-0 flex items-center justify-center" style="perspective: 1400px;">
+              <div class="relative"
+                   :style="{
+                     transformStyle: 'preserve-3d',
+                     transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+                     transition: isDragging ? 'none' : 'transform 0.05s linear',
+                     width: '100%', height: '100%'
+                   }">
+
+                <!-- حلقه نورانی مرکزی (محور استوانه) -->
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-400/80 shadow-[0_0_20px_rgba(251,191,36,0.8)]"
+                     style="transform: translate3d(-50%, -50%, 0) rotateX(0deg);"></div>
+
+                <!-- هر لایه عمق -->
+                <div v-for="(layer, layerIdx) in focusSceneLayers" :key="'layer-' + layerIdx"
+                     class="absolute top-1/2 left-1/2"
+                     :style="{
+                       transformStyle: 'preserve-3d',
+                       transform: `translate3d(-50%, -50%, ${-layerIdx * 130}px)`
+                     }">
+
+                  <!-- حلقه نمایشی (دایره‌ای که هر گام روی آن قرار دارد) -->
+                  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[360px] rounded-full border border-purple-500/20"
+                       style="transform: translate(-50%, -50%) rotateX(90deg);"></div>
+
+                  <!-- گره‌های گام‌ها -->
+                  <div v-for="(sg, idxInLayer) in layer" :key="sg.id"
+                       class="absolute top-1/2 left-1/2"
+                       :style="{
+                         transform: `translate3d(calc(-50% + ${nodePosition(idxInLayer, layerIdx, layer.length).x}px), calc(-50% + ${nodePosition(idxInLayer, layerIdx, layer.length).y}px), ${nodePosition(idxInLayer, layerIdx, layer.length).z}px)`,
+                         width: '140px'
+                       }">
+
+                    <div class="rounded-2xl p-2.5 backdrop-blur-xl border border-white/20 shadow-2xl"
+                         :style="{
+                           background: subGoalProgress(sg) >= 100 ? 'linear-gradient(135deg, rgba(34,197,94,0.4), rgba(16,185,129,0.3))' :
+                                       subGoalProgress(sg) > 0 ? 'linear-gradient(135deg, rgba(168,85,247,0.4), rgba(99,102,241,0.3))' :
+                                       'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(67,56,202,0.3))',
+                           boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(168,85,247,0.2)'
+                         }">
+                      <!-- عنوان گام -->
+                      <div class="flex items-start gap-1.5 mb-1.5">
+                        <ListTodo class="w-3.5 h-3.5 text-amber-300 flex-shrink-0 mt-0.5" />
+                        <p class="text-[11px] font-black text-white leading-tight line-clamp-2">{{ sg.title }}</p>
+                      </div>
+                      <!-- درصد پیشرفت -->
+                      <div class="flex items-center gap-1.5">
+                        <div class="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+                          <div class="h-full bg-gradient-to-r from-amber-400 to-emerald-400"
+                               :style="{ width: subGoalProgress(sg) + '%' }"></div>
+                        </div>
+                        <span class="text-[9px] font-black text-amber-300">{{ subGoalProgress(sg) }}%</span>
+                      </div>
+                      <!-- تعداد کار -->
+                      <p class="text-[9px] text-white/60 mt-1 font-bold">{{ (sg.tasks || []).length }} کار</p>
+
+                      <!-- کارها به‌صورت نودهای کوچک اطراف گره اصلی -->
+                      <div v-if="(sg.tasks || []).length > 0" class="mt-1.5 pt-1.5 border-t border-white/10 space-y-0.5">
+                        <div v-for="(t, tIdx) in sg.tasks.slice(0, 3)" :key="t.id"
+                             class="flex items-center gap-1 text-[9px] leading-tight">
+                          <div class="w-1 h-1 rounded-full flex-shrink-0"
+                               :class="t.is_completed ? 'bg-emerald-400' : 'bg-white/40'"></div>
+                          <span class="truncate flex-1"
+                                :class="t.is_completed ? 'text-emerald-200/80 line-through' : 'text-white/80'">
+                            {{ t.title }}
+                          </span>
+                        </div>
+                        <p v-if="(sg.tasks || []).length > 3" class="text-[8px] text-white/40 text-center">
+                          +{{ sg.tasks.length - 3 }} کار دیگر
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- اکشن اصلی انتهای کارت تمرکز -->

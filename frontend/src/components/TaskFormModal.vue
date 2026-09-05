@@ -114,6 +114,30 @@ const suggestedDueDate = () => {
   return toShamsiDisplay(reg.toISOString().split('T')[0])
 }
 
+// 🆕 تشخیص عقب‌افتادگی کار فعلی (در حالت ویرایش) برای نمایش فیلد تاریخ پیشنهادی
+const isOverdueForEdit = computed(() => {
+  const t = props.editingTask
+  if (!t) return false
+  if (t.is_completed || t.status === 'completed') return false
+  // تاریخ اقدام بعدی
+  const nextISO = (() => {
+    // کار دوره‌ای تکمیل‌شده: last_action_date + فاصله
+    if (t.recurrence_type && t.recurrence_type !== 'none' && t.is_completed) {
+      const base = t.last_action_date ? new Date(t.last_action_date) : new Date()
+      const interval = Number(t.recurrence_interval) || 1
+      if (t.recurrence_type === 'daily') base.setDate(base.getDate() + interval)
+      else if (t.recurrence_type === 'weekly') base.setDate(base.getDate() + (interval * 7))
+      else if (t.recurrence_type === 'monthly') base.setMonth(base.getMonth() + interval)
+      else if (t.recurrence_type === 'yearly') base.setFullYear(base.getFullYear() + interval)
+      return base.toISOString().split('T')[0]
+    }
+    return (t.due_date || t.register_date || t.last_action_date || '').toString().split('T')[0]
+  })()
+  if (!nextISO) return false
+  const todayISO = new Date().toISOString().split('T')[0]
+  return nextISO < todayISO
+})
+
 const close = () => emit('update:modelValue', false)
 
 // 🚨 اعتبارسنجی صریح فیلدهای اجباری (عنوان، هدف کلان و گام)
@@ -122,7 +146,7 @@ const submit = () => {
   let hasError = false
 
   if (!formValue.value.title || !formValue.value.title.trim()) {
-    localErrors.value.title = '⚠️ عنوان تسک الزامی است و نمی‌تواند خالی باشد.'
+    localErrors.value.title = '⚠️ عنوان کار الزامی است و نمی‌تواند خالی باشد.'
     hasError = true
   }
 
@@ -165,13 +189,13 @@ const submit = () => {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="text-2xl font-black" :style="{ color: 'var(--text-primary)' }">{{ editingTask ? 'ویرایش تسک' : 'تعریف تسک جدید' }}</h2>
+                <h2 class="text-2xl font-black" :style="{ color: 'var(--text-primary)' }">{{ editingTask ? 'ویرایش کار' : 'تعریف کار جدید' }}</h2>
                 <!-- 🌟 بج وضعیت زنده صریح درون فرم -->
                 <span class="px-3 py-1 rounded-xl border text-xs font-black" :class="liveStatusBadge.bg">
                   {{ liveStatusBadge.label }}
                 </span>
               </div>
-              <p class="text-xs font-bold opacity-70 mt-1" :style="{ color: 'var(--text-secondary)' }">فرم ساخت تسک با الزامات و راهنمای شفاف کادرها</p>
+              <p class="text-xs font-bold opacity-70 mt-1" :style="{ color: 'var(--text-secondary)' }">فرم ساخت کار با الزامات و راهنمای شفاف کادرها</p>
             </div>
           </div>
           <button @click="close" class="p-2 hover:bg-white/10 rounded-full transition text-gray-400 hover:text-white"><X class="w-6 h-6" /></button>
@@ -180,20 +204,20 @@ const submit = () => {
         <!-- محتوای فرم با اسکرول بار داخلی -->
         <div class="space-y-6 text-right overflow-y-auto pl-2 pr-1 custom-scrollbar max-h-[65vh]" dir="rtl">
           
-          <!-- بنر هشدار در صورت عقب‌افتاده بودن تسک -->
+          <!-- بنر هشدار در صورت عقب‌افتاده بودن کار -->
           <div v-if="isTaskOverdue" class="p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-200 text-xs font-bold flex items-center gap-2">
             <AlertTriangle class="w-5 h-5 text-red-400 shrink-0 animate-bounce" />
-            <span>🚨 این تسک عقب‌افتاده است (مهلت: {{ toShamsiDisplay(formValue.due_date) }}). تغییر وضعیت به «در حال انجام» یا «تکمیل شده» توصیه می‌شود.</span>
+            <span>🚨 این کار عقب‌افتاده است (مهلت: {{ toShamsiDisplay(formValue.due_date) }}). تغییر وضعیت به «در حال انجام» یا «تکمیل شده» توصیه می‌شود.</span>
           </div>
 
-          <!-- بخش ۱: عنوان و توضیحات تسک -->
+          <!-- بخش ۱: عنوان و توضیحات کار -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-4">
               
-              <!-- عنوان تسک (اجباری با حاشیه ۲پیکسلی مشخص) -->
+              <!-- عنوان کار (اجباری با حاشیه ۲پیکسلی مشخص) -->
               <div>
                 <label class="text-sm font-black mb-1.5 flex items-center gap-2" :class="(localErrors.title || validationErrors.title) ? 'text-red-500' : ''" :style="{ color: (localErrors.title || validationErrors.title) ? '#ef4444' : 'var(--text-primary)' }">
-                  <Tag class="w-4 h-4 text-purple-400" /> عنوان تسک *
+                  <Tag class="w-4 h-4 text-purple-400" /> عنوان کار *
                 </label>
                 <input 
                   v-model="formValue.title" 
@@ -208,7 +232,7 @@ const submit = () => {
                 <p v-if="localErrors.title || validationErrors.title" class="text-xs text-red-500 font-bold mt-1.5 flex items-center gap-1 bg-red-500/10 p-2.5 rounded-xl border border-red-500/30">
                   <AlertCircle class="w-4 h-4" /> {{ localErrors.title || validationErrors.title }}
                 </p>
-                <p v-else class="text-xs md:text-sm font-bold mt-1.5" :style="{ color: 'var(--text-secondary)' }">عنوان شفاف و واضح تسک (مثلاً: مطالعه فصل ۳ کتاب پایتون)</p>
+                <p v-else class="text-xs md:text-sm font-bold mt-1.5" :style="{ color: 'var(--text-secondary)' }">عنوان شفاف و واضح کار (مثلاً: مطالعه فصل ۳ کتاب پایتون)</p>
               </div>
 
               <!-- توضیحات تکمیلی (با حاشیه ۲پیکسلی مشخص) -->
@@ -219,7 +243,7 @@ const submit = () => {
                 <textarea 
                   v-model="formValue.description" 
                   rows="4" 
-                  placeholder="جزئیات، نکات کلیدی یا چک‌لیست مربوط به این تسک..." 
+                  placeholder="جزئیات، نکات کلیدی یا چک‌لیست مربوط به این کار..." 
                   class="w-full px-4 py-3.5 rounded-2xl border-2 border-slate-300 dark:border-white/30 text-sm font-medium outline-none transition focus:border-purple-500" 
                   :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }"
                 ></textarea>
@@ -244,7 +268,7 @@ const submit = () => {
                   <p v-if="localErrors.goal_id" class="text-xs text-red-500 font-bold mt-1.5 flex items-center gap-1 bg-red-500/10 p-2 rounded-xl border border-red-500/30">
                     <AlertCircle class="w-4 h-4" /> {{ localErrors.goal_id }}
                   </p>
-                  <p v-else class="text-xs md:text-sm font-bold mt-1.5" :style="{ color: 'var(--text-secondary)' }">انتخاب هدف بزرگی که این تسک در راستای آن است (الزامی)</p>
+                  <p v-else class="text-xs md:text-sm font-bold mt-1.5" :style="{ color: 'var(--text-secondary)' }">انتخاب هدف بزرگی که این کار در راستای آن است (الزامی)</p>
                 </div>
 
                 <!-- متصل به گام عملیاتی (اجباری) -->
@@ -259,7 +283,7 @@ const submit = () => {
                   <p v-if="localErrors.sub_goal_id" class="text-xs text-red-500 font-bold mt-1.5 flex items-center gap-1 bg-red-500/10 p-2 rounded-xl border border-red-500/30">
                     <AlertCircle class="w-4 h-4" /> {{ localErrors.sub_goal_id }}
                   </p>
-                  <p v-else class="text-xs md:text-sm font-bold mt-1.5" :style="{ color: 'var(--text-secondary)' }">اتصال تسک به فاز مشخصی از نقشه راه (الزامی)</p>
+                  <p v-else class="text-xs md:text-sm font-bold mt-1.5" :style="{ color: 'var(--text-secondary)' }">اتصال کار به فاز مشخصی از نقشه راه (الزامی)</p>
                 </div>
               </div>
               
@@ -313,6 +337,24 @@ const submit = () => {
               <label class="text-xs font-bold block mb-1" :style="{ color: 'var(--text-secondary)' }">مدت زمان برآورد شده (روز)</label>
               <input v-model.number="formValue.duration_days" type="number" min="1" placeholder="مثلاً: ۳" class="w-full px-4 py-2.5 rounded-xl border-2 border-slate-300 dark:border-white/30 text-sm font-bold outline-none" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }" />
               <p class="text-xs text-blue-500 font-bold mt-1.5">📅 پیشنهادی مهلت: {{ suggestedDueDate() }}</p>
+
+              <!-- 🆕 تاریخ پیشنهادی (تمدید) - قابل تنظیم فقط در حالت ویرایش و فقط وقتی کار عقب‌افتاده باشد -->
+              <div v-if="props.editingTask && isOverdueForEdit" class="mt-3 p-2.5 rounded-xl border-2 border-sky-500/40" style="background: rgba(14,165,233,0.08);">
+                <label class="text-xs font-black flex items-center gap-1 mb-1" style="color: #0ea5e9;">
+                  <Clock class="w-3 h-3" /> تاریخ پیشنهادی برای تمدید
+                </label>
+                <DateInputPersian v-model="formValue.suggested_due_date" />
+                <p class="text-[10px] font-bold mt-1 opacity-70" :style="{ color: 'var(--text-secondary)' }">این تاریخ پس از عقب‌افتادگی برای تمدید استفاده می‌شود</p>
+              </div>
+              <div v-else-if="props.editingTask && props.editingTask.suggested_due_date" class="mt-3">
+                <label class="text-xs font-bold block mb-1 flex items-center gap-1" :style="{ color: 'var(--text-secondary)' }">
+                  <Clock class="w-3 h-3" /> تاریخ پیشنهادی (تمدید)
+                </label>
+                <div class="px-3 py-2 rounded-xl text-sm font-bold border" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }">
+                  {{ toShamsiDisplay(props.editingTask.suggested_due_date) }}
+                </div>
+                <p class="text-[10px] font-bold mt-1 opacity-60" :style="{ color: 'var(--text-secondary)' }">فقط در حالت ویرایش پس از عقب‌افتادگی قابل تنظیم است</p>
+              </div>
             </div>
 
             <!-- تنظیمات تکرار + ضریب تکرار (فاصله هر دوره) + سویچ مداومت تکرار -->
@@ -323,9 +365,9 @@ const submit = () => {
               <select v-model="formValue.recurrence_type" class="w-full px-4 py-3 rounded-xl border-2 border-slate-300 dark:border-white/30 text-sm font-bold outline-none" :style="{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }">
                 <option v-for="opt in recurrenceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
-              <p class="text-xs font-bold" :style="{ color: 'var(--text-secondary)' }">بازه تکرار خودکار تسک در برنامه</p>
+              <p class="text-xs font-bold" :style="{ color: 'var(--text-secondary)' }">بازه تکرار خودکار کار در برنامه</p>
 
-              <!-- کادر ضریب تکرار و فاصله دوره (فعال برای تسک‌های غیر یک‌باره) -->
+              <!-- کادر ضریب تکرار و فاصله دوره (فعال برای کارهای غیر یک‌باره) -->
               <div v-if="formValue.recurrence_type !== 'none'" class="space-y-3 pt-2">
                 
                 <div>
@@ -365,7 +407,7 @@ const submit = () => {
                     <span>🔄 برنامه‌ریزی اتوماتیک دوره‌ای</span>
                   </label>
                   <p class="text-xs font-bold mt-1.5 leading-relaxed" :style="{ color: 'var(--text-secondary)' }">
-                    با تیک زدن تسک، مهلت آن خودکار برای دوره بعدی تنظیم می‌شود.
+                    با تیک زدن کار، مهلت آن خودکار برای دوره بعدی تنظیم می‌شود.
                   </p>
                 </div>
               </div>
@@ -405,7 +447,7 @@ const submit = () => {
             class="flex-1 py-4 rounded-2xl text-white font-black text-base md:text-lg shadow-xl transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2" 
             :style="{ background: 'var(--accent)' }"
           >
-            <span>{{ editingTask ? 'ذخیره تغییرات تسک' : 'ثبت و ایجاد تسک' }}</span>
+            <span>{{ editingTask ? 'ذخیره تغییرات کار' : 'ثبت و ایجاد کار' }}</span>
           </button>
           <button 
             type="button"

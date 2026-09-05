@@ -56,7 +56,7 @@ const menuItems = [
   { path: '/bio', label: 'پایش زیست و سلامت', icon: HeartPulse },
   { path: '/skills', label: 'بانک مهارت‌ها', icon: Award },
   { path: '/ideas', label: 'ایده‌ها', icon: Lightbulb },
-  { path: '/tasks', label: 'تسک‌ها', icon: ListTodo },
+  { path: '/tasks', label: 'میز کار', icon: ListTodo },
   { path: '/goals', label: 'اهداف', icon: Target },
   { path: '/roadmap', label: 'نقشه راه', icon: MapPin },
   { path: '/calendar', label: 'تقویم', icon: Calendar },
