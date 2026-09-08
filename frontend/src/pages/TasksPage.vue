@@ -124,8 +124,13 @@ const chartData = computed(() => {
     const dayLabel = days === 7 ? persianWeekDays[persianDayIdx] : String(d.getDate())
 
     const dayTasks = tasks.value.filter(t => {
-      const td = t.due_date ? String(t.due_date).split('T')[0] : ''
-      return td === iso
+      const dates = [
+        t.due_date ? String(t.due_date).split('T')[0] : '',
+        t.suggested_due_date ? String(t.suggested_due_date).split('T')[0] : '',
+        t.register_date ? String(t.register_date).split('T')[0] : '',
+        t.last_action_date ? String(t.last_action_date).split('T')[0] : ''
+      ].filter(Boolean)
+      return dates.includes(iso)
     })
 
     const completed = dayTasks.filter(t => t.is_completed).length
@@ -151,7 +156,7 @@ const maxChartValue = computed(() => {
   return m
 })
 
-// بررسی تعلق کار به کارهای امروز
+// بررسی تعلق کار به کارهای امروز (شامل تاریخ پیشنهادی تمدید)
 const isToday = (task) => {
   if (!task) return false
   const todayLocal = getTodayISOLocal()
@@ -159,8 +164,9 @@ const isToday = (task) => {
   const d = task.due_date ? String(task.due_date).split('T')[0] : ''
   const r = task.register_date ? String(task.register_date).split('T')[0] : ''
   const l = task.last_action_date ? String(task.last_action_date).split('T')[0] : ''
+  const s = task.suggested_due_date ? String(task.suggested_due_date).split('T')[0] : ''
 
-  return d === todayLocal || r === todayLocal || l === todayLocal
+  return d === todayLocal || r === todayLocal || l === todayLocal || s === todayLocal
 }
 
 // بررسی کار دوره‌ای
@@ -179,7 +185,7 @@ const getNextActionDate = (task) => {
   if (!task) return 'تعیین نشده'
   if (!task.due_date && !task.last_action_date && !task.register_date) return 'تعیین نشده'
   
-  if (isTaskRecurring(task) && (task.is_completed || task.status === 'completed')) {
+  if (isTaskRecurring(task) && (task.is_completed || task.status === 'completed' || task.status === 'not_started')) {
     const baseDate = task.last_action_date ? new Date(task.last_action_date) : new Date()
     const interval = Number(task.recurrence_interval) || 1
     
@@ -205,9 +211,11 @@ const getTaskStatus = (task) => {
   // تاریخ امروز به فرمت ISO محلی (نه UTC) - برای سازگاری با timezone کاربر
   const todayISO = getTodayISOLocal()
 
-  // 🆕 اولویت ۱: اگر تاریخ پیشنهادی == امروز → امروز (حتی اگر اقدام بعدی عقب‌افتاده باشد)
+  // 🆕 اولویت ۱: اگر تاریخ پیشنهادی == امروز → امروز
   if (task.suggested_due_date) {
-    const sugISO = String(task.suggested_due_date).split('T')[0]
+    const rawSug = String(task.suggested_due_date)
+    const normSug = toGregorianISO ? toGregorianISO(rawSug) : (rawSug.includes('/') ? rawSug.replace(/\//g, '-') : rawSug)
+    const sugISO = normSug ? String(normSug).split('T')[0] : String(rawSug).split('T')[0]
     if (sugISO === todayISO) return 'today'
   }
 
@@ -221,7 +229,9 @@ const getTaskStatus = (task) => {
   if (nextISO && nextISO < todayISO) {
     // اگر تاریخ پیشنهادی تنظیم شده و هنوز نگذشته → تمدید شده
     if (task.suggested_due_date) {
-      const sugISO = String(task.suggested_due_date).split('T')[0]
+      const rawSug = String(task.suggested_due_date)
+      const normSug = toGregorianISO ? toGregorianISO(rawSug) : (rawSug.includes('/') ? rawSug.replace(/\//g, '-') : rawSug)
+      const sugISO = normSug ? String(normSug).split('T')[0] : String(rawSug).split('T')[0]
       if (sugISO > todayISO) return 'extended'
     }
     return 'overdue'
@@ -248,8 +258,15 @@ const computeNextActionDateISO = (task) => {
   if (!task) return ''
   // helper: تبدیل شیء Date به ISO محلی
   const toLocalISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  // اگر تاریخ پیشنهادی برای تمدید تنظیم شده باشد، از آن به‌عنوان مرجع استفاده شود
+  // نرمال‌سازی تاریخ پیشنهادی به ISO میلادی (در صورت فرمت شمسی YYYY/MM/DD)
+  if (task.suggested_due_date) {
+    const raw = String(task.suggested_due_date)
+    const iso = toGregorianISO ? toGregorianISO(raw) : (raw.includes('/') ? raw.replace(/\//g, '-') : raw)
+    return iso ? String(iso).split('T')[0] : String(raw).split('T')[0]
+  }
   // برای کار دوره‌ای: last_action_date + فاصله تکرار
-  if (isTaskRecurring(task) && (task.is_completed || task.status === 'completed')) {
+  if (isTaskRecurring(task) && (task.is_completed || task.status === 'completed' || task.status === 'not_started')) {
     const baseDate = task.last_action_date ? new Date(task.last_action_date) : new Date()
     const interval = Number(task.recurrence_interval) || 1
     if (task.recurrence_type === 'daily') baseDate.setDate(baseDate.getDate() + interval)
@@ -477,7 +494,7 @@ const openEditForm = (task) => {
     register_date: task.register_date || '', duration_days: task.duration_days || null,
     due_date: task.due_date || '',
     category: task.category || '', sub_goal_id: task.sub_goal_id || null,
-    goal_id: task.goal_id || null, last_action_date: task.last_action_date || getTodayISOLocal(),
+    goal_id: task.goal_id || null, last_action_date: task.last_action_date || null,
     status: task.status || 'not_started', recurrence_type: task.recurrence_type || 'none',
     recurrence_interval: task.recurrence_interval || 1,
     recurrence_end_date: task.recurrence_end_date || '',

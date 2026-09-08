@@ -238,16 +238,27 @@ const fetchTasks = async () => {
     const todayGreg = `${realNow.getFullYear()}-${String(realNow.getMonth() + 1).padStart(2, '0')}-${String(realNow.getDate()).padStart(2, '0')}`
     const todayShamsi = `${realJY}/${String(realJM).padStart(2, '0')}/${String(realJD).padStart(2, '0')}`
 
-    overdueTasks.value = tasks.value.filter(t => !t.is_completed && t.due_date && (t.due_date < todayGreg || t.due_date < todayShamsi))
+    overdueTasks.value = tasks.value.filter(t => {
+      if (t.is_completed) return false
+      const candidates = [t.due_date, t.suggested_due_date, t.last_action_date, t.register_date].filter(Boolean).map(d => String(d).split('T')[0])
+      return candidates.some(d => d && (d < todayGreg || d < todayShamsi))
+    })
   } catch (e) {} finally { isLoading.value = false }
 }
 
 const getTasksForDayObj = (cell) => {
   if (cell.isPadding) return []
   return tasks.value.filter(t => {
-    const d = t.due_date || t.register_date
-    if (!d) return false
-    return (d === cell.shamsiSlash || d === cell.shamsiDash || d === cell.gregISO)
+    const dates = [
+      t.due_date,
+      t.suggested_due_date,
+      t.register_date,
+      t.last_action_date
+    ].filter(Boolean)
+    return dates.some(d => {
+      const s = String(d)
+      return s === cell.shamsiSlash || s === cell.shamsiDash || s === cell.gregISO
+    })
   })
 }
 

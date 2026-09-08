@@ -118,7 +118,11 @@ async def update_task(db: AsyncSession, task_id: int, owner_id: int, task_update
     update_data = task_update.model_dump(exclude_unset=True)
     is_marking_completed = update_data.get("is_completed") is True or update_data.get("status") == "completed"
 
-    if update_data.get("status") is not None or is_marking_completed or not db_task.last_action_date:
+    # فقط زمانی last_action_date بازنویسی شود که:
+    #  - کاربر صریحاً آن را فرستاده باشد، یا
+    #  - کار به completed تغییر کند (تیک زدن)
+    # در حالت ویرایش عادی فیلدهای دیگر (مثل suggested_due_date) نباید last_action_date را عوض کنند.
+    if "last_action_date" not in update_data and is_marking_completed:
         db_task.last_action_date = date.today()
 
     for key, value in update_data.items():
