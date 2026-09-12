@@ -95,6 +95,20 @@ const taskStats = computed(() => {
   return { total, completed, overdue, today, completionRate }
 })
 
+// 📊 خلاصه تفکیک بدون تکرار / دوره‌ای (کادر کنار نمودار هفتگی)
+// کار دوره‌ای: تکمیل‌شده + در انتظار موعد = انجام‌شده؛ فقط عقب‌افتاده = انجام‌نشده
+const taskTypeSummary = computed(() => {
+  const fixed = tasks.value.filter(t => !isTaskRecurring(t))
+  const rec = tasks.value.filter(t => isTaskRecurring(t))
+  const fixedDone = fixed.filter(t => t.is_completed || t.status === 'completed').length
+  const recDone = rec.filter(t => !isTaskOverdue(t)).length
+  const pct = (d, t) => t > 0 ? Math.round((d / t) * 100) : 0
+  return {
+    fixedTotal: fixed.length, fixedDone, fixedPct: pct(fixedDone, fixed.length),
+    recTotal: rec.length, recDone, recPct: pct(recDone, rec.length)
+  }
+})
+
 // 📊 داده‌های نمودار میله‌ای (فیکس شده: شنبه در سمت راست، جمعه در سمت چپ)
 const chartData = computed(() => {
   const days = chartRange.value
@@ -123,17 +137,23 @@ const chartData = computed(() => {
     const persianDayIdx = (wd + 1) % 7
     const dayLabel = days === 7 ? persianWeekDays[persianDayIdx] : String(d.getDate())
 
-    const dayTasks = tasks.value.filter(t => {
-      const dates = [
-        t.due_date ? String(t.due_date).split('T')[0] : '',
-        t.suggested_due_date ? String(t.suggested_due_date).split('T')[0] : '',
-        t.register_date ? String(t.register_date).split('T')[0] : '',
-        t.last_action_date ? String(t.last_action_date).split('T')[0] : ''
-      ].filter(Boolean)
-      return dates.includes(iso)
-    })
+    // برنامه‌ریزی‌شده روز: due_date همون روز (شامل تمدیدشده‌ها) یا تاریخ اقدام بعدی دوره‌ای همون روز
+    // انجام‌شده روز: (تکمیل‌شده و due همون روز) یا last_action همون روز — هم‌منطق با نمودار داشبورد
+    const isoOf = (v) => v ? String(v).split('T')[0] : ''
+    let fixedPlanned = 0, recPlanned = 0, fixedDone = 0, recDone = 0
+    for (const t of tasks.value) {
+      const rec = isTaskRecurring(t)
+      const due = isoOf(t.due_date)
+      const last = isoOf(t.last_action_date)
+      let plannedHere = due !== '' && due === iso
+      if (rec && !plannedHere) {
+        plannedHere = computeNextActionDateISO(t) === iso
+      }
+      if (plannedHere) { if (rec) recPlanned++; else fixedPlanned++ }
+      const doneHere = (t.is_completed && due !== '' && due === iso) || (last !== '' && last === iso)
+      if (doneHere) { if (rec) recDone++; else fixedDone++ }
+    }
 
-    const completed = dayTasks.filter(t => t.is_completed).length
     const created = tasks.value.filter(t => {
       const rd = t.register_date ? String(t.register_date).split('T')[0] : ''
       return rd === iso
@@ -143,8 +163,12 @@ const chartData = computed(() => {
       date: iso,
       dayLabel,
       isToday: iso === todayISO,
-      total: dayTasks.length,
-      completed,
+      planned_total: fixedPlanned + recPlanned,
+      fixedPlanned,
+      recPlanned,
+      fixedDone,
+      recDone,
+      completed: fixedDone + recDone,
       created
     })
   }
@@ -152,9 +176,30 @@ const chartData = computed(() => {
 })
 
 const maxChartValue = computed(() => {
-  const m = Math.max(1, ...chartData.value.map(d => Math.max(d.total, d.created)))
+  const m = Math.max(1, ...chartData.value.map(d => Math.max(d.planned_total || 0, d.completed || 0)))
   return m
 })
+
+// پاپ‌آپ تفکیک ستون نمودار (با کلیک روی هر ستون)
+const selectedBar = ref(null)
+const openBarDetail = (b) => {
+  selectedBar.value = (selectedBar.value && selectedBar.value.date === b.date) ? null : b
+}
+
+// ابعاد ستون هر روز: ارتفاع کل با برنامه‌ریزی‌شده متناسب، بخش سبز پایین = انجام‌شده
+const taskBar = (b) => {
+  const planned = b.planned_total || 0
+  const done = b.completed || 0
+  const total = Math.max(planned, done)
+  const max = maxChartValue.value || 1
+  return {
+    planned,
+    done,
+    height: total > 0 ? Math.max(8, (total / max) * 100) : 0,
+    doneH: total > 0 ? (Math.min(done, total) / total) * 100 : 0,
+    restH: total > 0 && planned > done ? ((planned - done) / total) * 100 : 0
+  }
+}
 
 // بررسی تعلق کار به کارهای امروز (شامل تاریخ پیشنهادی تمدید)
 const isToday = (task) => {
@@ -444,8 +489,16 @@ const filteredTasks = computed(() => {
   if (filterSubGoalId.value) result = result.filter(t => t.sub_goal_id === filterSubGoalId.value)
   if (filterRecurrence.value === 'has') result = result.filter(t => isTaskRecurring(t))
   if (filterRecurrence.value === 'none') result = result.filter(t => !isTaskRecurring(t))
-  if (filterDueDateFrom.value) result = result.filter(t => t.due_date && t.due_date >= filterDueDateFrom.value)
-  if (filterDueDateTo.value) result = result.filter(t => t.due_date && t.due_date <= filterDueDateTo.value)
+  // فیلتر تاریخ: تاریخ اقدام بعدی (شامل تاریخ تمدیدشده) در بازه باشد
+  if (filterDueDateFrom.value || filterDueDateTo.value) {
+    result = result.filter(t => {
+      const iso = computeNextActionDateISO(t)
+      if (!iso) return false
+      if (filterDueDateFrom.value && iso < filterDueDateFrom.value) return false
+      if (filterDueDateTo.value && iso > filterDueDateTo.value) return false
+      return true
+    })
+  }
 
   return result
 })
@@ -671,8 +724,9 @@ onMounted(async () => {
       <button @click="applyTabFilter('completed')" class="rounded-xl transition whitespace-nowrap" :class="[fontSizeClasses.tab, quickTab === 'completed' ? 'bg-gray-600 text-white shadow-lg' : 'bg-white/5 text-gray-300 hover:bg-white/10']">✅ تکمیل‌شده‌ها</button>
     </div>
 
-    <!-- 📊 نمودار تحلیلی فعالیت + ۴ کارت KPI -->
-    <div v-if="showChart" class="glass-card p-4 sm:p-5 rounded-2xl md:rounded-3xl border border-white/10 mb-5 animate-in fade-in duration-200">
+    <!-- 📊 نمودار تحلیلی فعالیت + ۴ کارت KPI + خلاصه نوع کارها -->
+    <div v-if="showChart" class="mb-5 grid grid-cols-1 lg:grid-cols-3 gap-4 animate-in fade-in duration-200">
+    <div class="glass-card p-4 sm:p-5 rounded-2xl md:rounded-3xl border border-white/10 lg:col-span-2">
       <!-- ۴ کارت KPI -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-4">
         <div class="p-2.5 sm:p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center gap-2 sm:gap-3">
@@ -728,40 +782,99 @@ onMounted(async () => {
       </div>
 
       <!-- نمودار میله‌ای (شنبه در سمت راست، جمعه در سمت چپ، روز جاری طلایی) -->
-      <div class="flex items-end gap-1 h-28 sm:h-32" dir="rtl">
-        <div v-for="(b, i) in chartData" :key="b.date" class="flex-1 flex flex-col items-center justify-end gap-0.5 min-w-0"
-             :class="b.isToday ? 'relative' : ''">
-          <!-- تعداد بالای میله -->
-          <span v-if="b.total > 0" class="text-[8px] sm:text-[9px] font-bold"
-                :class="b.isToday ? 'text-amber-300' : 'text-blue-300'">{{ b.total }}</span>
-          <span v-else class="text-[8px] sm:text-[9px] opacity-20">·</span>
-          <!-- میله‌ها (due + register) -->
-          <div class="w-full flex flex-col items-stretch overflow-hidden rounded-t gap-px relative"
+      <div class="flex items-end gap-1 h-28 sm:h-32 relative" dir="rtl">
+        <div v-for="(b, i) in chartData" :key="b.date" class="flex-1 h-full flex flex-col items-center justify-end gap-0.5 min-w-0 cursor-pointer"
+             @click="openBarDetail(b)">
+          <!-- تعداد بالای میله (انجام/برنامه) -->
+          <span v-if="taskBar(b).planned > 0 || taskBar(b).done > 0" class="text-[8px] sm:text-[9px] font-bold shrink-0"
+                :class="b.isToday ? 'text-amber-300' : 'text-blue-300'">{{ taskBar(b).done }}/{{ taskBar(b).planned }}</span>
+          <span v-else class="text-[8px] sm:text-[9px] opacity-20 shrink-0">·</span>
+          <!-- میله: کل ارتفاع = برنامه (آبی) + بخش سبز پایین = انجام‌شده -->
+          <div class="w-full flex-1 flex flex-col items-stretch justify-end overflow-hidden rounded-t gap-px relative min-h-0"
                :style="{
-                 height: Math.max(2, (Math.max(b.total, b.created) / maxChartValue) * 100) + '%',
                  boxShadow: b.isToday ? '0 0 12px rgba(251,191,36,0.5)' : 'none',
                  background: b.isToday ? 'linear-gradient(180deg, rgba(251,191,36,0.1), transparent)' : 'transparent'
                }">
-            <div v-if="b.total > 0"
-                 :class="b.isToday ? 'bg-gradient-to-t from-amber-700 to-amber-400' : 'bg-gradient-to-t from-blue-700 to-blue-400'"
-                 :style="{ height: maxChartValue > 0 ? Math.max(20, (b.total / maxChartValue) * 100) + '%' : '0%' }"
-                 :title="`${b.date} - سررسید: ${b.total} (${b.completed} تکمیل)`"></div>
-            <div v-if="b.created > b.total"
-                 :class="b.isToday ? 'bg-gradient-to-t from-amber-700/60 to-amber-400/60' : 'bg-gradient-to-t from-purple-700/60 to-purple-400/60'"
-                 :style="{ height: maxChartValue > 0 ? Math.max(20, ((b.created - b.total) / maxChartValue) * 100) + '%' : '0%' }"
-                 :title="`${b.date} - ثبت: ${b.created}`"></div>
+            <div class="w-full flex flex-col items-stretch overflow-hidden rounded-t-md ring-1 transition-all"
+                 :style="{ height: taskBar(b).height + '%', minHeight: (taskBar(b).height > 0 ? '8px' : '0') }">
+              <div v-if="taskBar(b).restH > 0" class="w-full bg-gradient-to-t from-blue-700 to-blue-400"
+                   :title="`${formatDate(b.date)} - برنامه: ${taskBar(b).planned}`"
+                   :style="{ height: taskBar(b).restH + '%' }"></div>
+              <div v-if="taskBar(b).doneH > 0" class="w-full bg-gradient-to-t from-emerald-700 to-emerald-400"
+                   :title="`${formatDate(b.date)} - انجام: ${taskBar(b).done} از ${taskBar(b).planned}`"
+                   :style="{ height: taskBar(b).doneH + '%' }"></div>
+            </div>
           </div>
           <!-- برچسب روز -->
-          <span class="text-[8px] sm:text-[9px] truncate w-full text-center"
+          <span class="text-[8px] sm:text-[9px] truncate w-full text-center shrink-0"
                 :class="b.isToday ? 'text-amber-300 font-black' : 'opacity-50'">{{ b.dayLabel }}</span>
         </div>
+        <!-- پاپ‌آپ تفکیک ستون: همیشه وسط نمودار (موقعیت ثابت) -->
+        <Transition name="popup">
+          <div v-if="selectedBar"
+               class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/98 border border-white/30 backdrop-blur-xl rounded-2xl p-3 shadow-2xl min-w-[170px] text-right">
+            <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-white/10">
+              <span class="text-xs font-black text-white">{{ selectedBar.dayLabel }}</span>
+              <button @click.stop="selectedBar = null" class="text-slate-400 hover:text-white text-xs leading-none">✕</button>
+            </div>
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex items-center justify-between gap-3">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-sky-400"></span><span class="font-bold text-gray-300">کار ثابت</span></span>
+                <span class="font-black text-sky-300">{{ selectedBar.fixedPlanned || 0 }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-purple-500"></span><span class="font-bold text-gray-300">انجام ثابت</span></span>
+                <span class="font-black text-purple-300">{{ selectedBar.fixedDone || 0 }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span><span class="font-bold text-gray-300">کار دوره‌ای</span></span>
+                <span class="font-black text-amber-300">{{ selectedBar.recPlanned || 0 }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span><span class="font-bold text-gray-300">انجام دوره‌ای</span></span>
+                <span class="font-black text-emerald-300">{{ selectedBar.recDone || 0 }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3 pt-1.5 mt-1.5 border-t border-white/10">
+                <span class="font-black text-white">مجموع کار</span>
+                <span class="font-black text-base text-white">{{ selectedBar.planned_total || 0 }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="font-black text-emerald-300">مجموع انجام</span>
+                <span class="font-black text-base text-emerald-300">{{ selectedBar.completed || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
 
       <!-- راهنما -->
       <div class="flex items-center justify-center gap-4 mt-3 pt-2 border-t border-white/5 text-[10px] opacity-70">
-        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-blue-500"></span> سررسید روز</span>
-        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-purple-500/60"></span> ثبت‌شده</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-blue-500"></span> برنامه روز</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-emerald-500"></span> انجام‌شده</span>
       </div>
+    </div>
+
+    <!-- 📊 خلاصه تفکیک بدون تکرار / دوره‌ای -->
+    <div class="glass-card p-4 sm:p-5 rounded-2xl md:rounded-3xl border border-white/10 flex flex-col gap-3">
+      <h3 class="text-xs sm:text-sm font-black">خلاصه نوع کارها</h3>
+      <div class="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-black text-cyan-300">📌 بدون تکرار</span>
+          <span class="text-xs font-black text-white">{{ taskTypeSummary.fixedDone }} از {{ taskTypeSummary.fixedTotal }}</span>
+        </div>
+        <div class="mt-2 h-2 rounded-full bg-white/10 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-l from-cyan-600 to-cyan-300 transition-all" :style="{ width: taskTypeSummary.fixedPct + '%' }"></div></div>
+        <p class="mt-1.5 text-[10px] font-bold text-cyan-200/80">{{ taskTypeSummary.fixedPct }}٪ انجام شده</p>
+      </div>
+      <div class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-black text-amber-300">🔄 دوره‌ای</span>
+          <span class="text-xs font-black text-white">{{ taskTypeSummary.recDone }} از {{ taskTypeSummary.recTotal }}</span>
+        </div>
+        <div class="mt-2 h-2 rounded-full bg-white/10 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-l from-amber-600 to-amber-300 transition-all" :style="{ width: taskTypeSummary.recPct + '%' }"></div></div>
+        <p class="mt-1.5 text-[10px] font-bold text-amber-200/80">{{ taskTypeSummary.recPct }}٪ انجام شده</p>
+      </div>
+      <p class="text-[10px] leading-5 text-gray-400 font-bold border-t border-white/5 pt-2">💡 در کارهای دوره‌ای، کارهای تکمیل‌شده و کارهای در انتظار موعد (که هنوز عقب نیفتاده‌اند) انجام‌شده حساب می‌شوند؛ فقط کارهای عقب‌افتاده انجام‌نشده‌اند.</p>
+    </div>
     </div>
 
     <!-- 🔍 کادر فیلترهای پیشرفته با تمامی امکانات -->

@@ -49,6 +49,7 @@ class TaskRead(TaskBase):
     id: int
     is_completed: bool
     owner_id: int
+    due_date: Optional[GDate] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     days_until_due: Optional[int] = None

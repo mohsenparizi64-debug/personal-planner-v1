@@ -371,18 +371,35 @@ body {
   color: #0f172a !important;
 }
 
-/* اما رنگ‌های برند (بنفش، آبی، سبز، قرمز) باید حفظ بشن */
-.light-2026 .text-purple-400,
-.light-2026 .text-purple-300,
-.light-2026 .text-blue-400,
-.light-2026 .text-blue-300,
-.light-2026 .text-emerald-400,
-.light-2026 .text-emerald-300,
-.light-2026 .text-red-400,
-.light-2026 .text-amber-400,
-.light-2026 .text-rose-400 {
-  /* رنگ‌های accent حفظ میشن، فقط اگه خیلی روشن بودن تیره‌تر میشن */
-}
+/* اما رنگ‌های برند (بنفش، آبی، سبز، قرمز) باید حفظ بشن — فقط تیره‌تر برای خوانایی روی سفید */
+.light-2026 .text-amber-300 { color: #b45309 !important; }   /* amber-700: کنتراست ~۵.۹:۱ روی سفید */
+.light-2026 .text-amber-400 { color: #b45309 !important; }
+.light-2026 .text-yellow-300 { color: #a16207 !important; }  /* yellow-700 */
+.light-2026 .text-yellow-400 { color: #a16207 !important; }
+.light-2026 .text-orange-300 { color: #c2410c !important; }  /* orange-700 */
+.light-2026 .text-orange-400 { color: #c2410c !important; }
+.light-2026 .text-red-300 { color: #b91c1c !important; }     /* red-700: ~۵.۹:۱ */
+.light-2026 .text-red-400 { color: #b91c1c !important; }
+.light-2026 .text-rose-300 { color: #be123c !important; }    /* rose-700 */
+.light-2026 .text-rose-400 { color: #be123c !important; }
+.light-2026 .text-green-300 { color: #15803d !important; }   /* green-700 */
+.light-2026 .text-green-400 { color: #15803d !important; }
+.light-2026 .text-teal-300 { color: #0f766e !important; }    /* teal-700 */
+.light-2026 .text-teal-400 { color: #0f766e !important; }
+.light-2026 .text-cyan-300 { color: #0e7490 !important; }    /* cyan-700 */
+.light-2026 .text-cyan-400 { color: #0e7490 !important; }
+.light-2026 .text-sky-300 { color: #0369a1 !important; }     /* sky-700 */
+.light-2026 .text-sky-400 { color: #0369a1 !important; }
+.light-2026 .text-indigo-300 { color: #4338ca !important; }  /* indigo-700 */
+.light-2026 .text-indigo-400 { color: #4338ca !important; }
+.light-2026 .text-pink-300 { color: #be185d !important; }    /* pink-700 */
+.light-2026 .text-pink-400 { color: #be185d !important; }
+.light-2026 .text-lime-300 { color: #4d7c0f !important; }    /* lime-700 */
+.light-2026 .text-lime-400 { color: #4d7c0f !important; }
+.light-2026 .text-slate-300 { color: #475569 !important; }
+.light-2026 .text-slate-400 { color: #475569 !important; }
+.light-2026 .text-zinc-300 { color: #52525b !important; }
+.light-2026 .text-zinc-400 { color: #52525b !important; }
 
 /* متن‌های accent (بنفش/آبی) در تم روشن باید تیره‌تر باشن برای کنتراست بهتر */
 .light-2026 .text-purple-300 { color: #6d28d9 !important; }   /* تیره‌تر از purple-300 */

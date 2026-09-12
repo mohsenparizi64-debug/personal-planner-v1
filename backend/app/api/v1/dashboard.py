@@ -8,6 +8,7 @@ import hashlib
 
 from app.db.session import get_db
 from app.core.deps import get_current_user
+from app.crud.task import calculate_next_recurrence
 from app.models.all_models import (
     User, Task, Goal, SubGoal, Account, Idea, Transaction, 
     Movie, Book, Place, HealthLog, WorkoutLog, MealLog, SpiritualTracker
@@ -175,8 +176,26 @@ async def get_overview(
         is_fixed = lambda t: (t.recurrence_type in (None, '', 'none'))
         is_recurring = lambda t: (t.recurrence_type and t.recurrence_type != 'none')
 
+        # موعد بعدی اقدام کار دوره‌ای (برای «برنامه‌ریزی‌شده» آن روز)
+        def _next_rec_str(t):
+            try:
+                nr = calculate_next_recurrence(t)
+            except Exception:
+                return None
+            return str(nr) if nr else None
+
+        # برنامه‌ریزی‌شده روز X: due_date همون روز (شامل تمدیدشده‌ها) یا موعد بعدی اقدام دوره‌ای همون روز
+        def _is_planned_on_day(t):
+            if str(t.due_date) == day_str:
+                return True
+            if not is_fixed(t):
+                return _next_rec_str(t) == day_str
+            return False
+
         fixed_count = sum(1 for t in all_tasks if is_fixed(t) and _is_completed_on_day(t))
         recurring_count = sum(1 for t in all_tasks if is_recurring(t) and _is_completed_on_day(t))
+        fixed_planned = sum(1 for t in all_tasks if is_fixed(t) and _is_planned_on_day(t))
+        recurring_planned = sum(1 for t in all_tasks if is_recurring(t) and _is_planned_on_day(t))
 
         completed_on_day = fixed_count + recurring_count
         created_on_day = sum(1 for t in all_tasks if str(t.register_date) == day_str or str(t.created_at)[:10] == day_str)
@@ -189,6 +208,9 @@ async def get_overview(
             "created": created_on_day,
             "fixed_completed": fixed_count,
             "recurring_completed": recurring_count,
+            "fixed_planned": fixed_planned,
+            "recurring_planned": recurring_planned,
+            "planned_total": fixed_planned + recurring_planned,
         })
 
     return {

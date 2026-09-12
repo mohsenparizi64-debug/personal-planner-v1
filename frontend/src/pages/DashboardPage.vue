@@ -9,6 +9,7 @@ import {
   BarChart2, PieChart, Film, BookOpen, MapPin, Scale, X, Edit3, ShieldAlert, Award
 } from 'lucide-vue-next'
 import { formatDate } from '@/utils/date'
+import DateInputPersian from '@/components/DateInputPersian.vue'
 
 const themeStore = useThemeStore()
 const router = useRouter()
@@ -93,7 +94,7 @@ const toggleAnalyticsView = () => {
 
 // مدیریت امنیتی کلیک روی کارهای امروز
 const openTaskModal = (task) => {
-  selectedTaskForModal.value = { ...task }
+  selectedTaskForModal.value = { ...task, done_date: new Date().toISOString().split('T')[0] }
   showTaskModal.value = true
 }
 
@@ -102,10 +103,11 @@ const confirmToggleTask = async () => {
   try {
     const today = new Date().toISOString().split('T')[0]
     const updatedStatus = !selectedTaskForModal.value.is_completed
+    const { done_date, ...rest } = selectedTaskForModal.value
     await api.put(`/tasks/${selectedTaskForModal.value.id}`, {
-      ...selectedTaskForModal.value,
+      ...rest,
       is_completed: updatedStatus,
-      last_action_date: updatedStatus ? today : null
+      last_action_date: updatedStatus ? (done_date || today) : null
     })
     showTaskModal.value = false
     fetchDashboard()
@@ -202,10 +204,9 @@ const weeklyStats = computed(() => {
   const secondAvg = secondHalf.length > 0 ? secondHalf.reduce((s, d) => s + (d.completed || 0), 0) / secondHalf.length : 0
   const trend = firstAvg > 0 ? Math.round(((secondAvg - firstAvg) / firstAvg) * 100) : (secondAvg > 0 ? 100 : 0)
 
-  // بیشترین مقدار برای اسکیل
-  const maxComp = Math.max(...data.map(d => d.completed || 0), 0)
-  const maxPlanned = Math.max(...data.map(d => d.planned || 0), 0)
-  const maxValue = Math.max(maxComp, maxPlanned, 1)
+  // بیشترین مقدار برای اسکیل: سقف هر ستون = ماکس(برنامه‌ریزی‌شده، انجام‌شده) آن روز
+  const colTotal = (d) => Math.max(d.planned_total || d.planned || 0, d.completed || 0)
+  const maxValue = Math.max(...data.map(colTotal), 1)
 
   // موقعیت خط میانگین (درصد)
   const avgLinePos = maxValue > 0 ? Math.min(100, (avg / maxValue) * 100) : 0
@@ -222,6 +223,20 @@ const weeklyStats = computed(() => {
   }
 })
 
+// ابعاد ستون هر روز: ارتفاع کل با برنامه‌ریزی‌شده متناسب، بخش سبز پایین = انجام‌شده
+const dayBar = (day) => {
+  const planned = day.planned_total || day.planned || 0
+  const done = day.completed || 0
+  const total = Math.max(planned, done)
+  const max = weeklyStats.value.maxValue || 1
+  return {
+    planned,
+    done,
+    height: total > 0 ? Math.max(8, (total / max) * 100) : 0,
+    doneH: total > 0 ? (Math.min(done, total) / total) * 100 : 0,
+    restH: total > 0 && planned > done ? ((planned - done) / total) * 100 : 0
+  }
+}
 // درصدهای نمودار ۳ بعدی
 const fixedPercent = computed(() => {
   const total = (dashboardData.value?.summary?.fixed_tasks_count || 0) + (dashboardData.value?.summary?.recurring_tasks_count || 0)
@@ -460,21 +475,39 @@ onMounted(() => {
                     <div class="space-y-1.5 text-[11px]">
                       <div class="flex items-center justify-between gap-3">
                         <span class="flex items-center gap-1.5">
+                          <span class="w-2.5 h-2.5 rounded-sm bg-sky-400"></span>
+                          <span class="font-bold" :style="{ color: 'var(--text-secondary)' }">کار ثابت</span>
+                        </span>
+                        <span class="font-black text-sky-300">{{ day.fixed_planned || 0 }}</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="flex items-center gap-1.5">
                           <span class="w-2.5 h-2.5 rounded-sm bg-purple-500"></span>
-                          <span class="font-bold" :style="{ color: 'var(--text-secondary)' }">ثابت</span>
+                          <span class="font-bold" :style="{ color: 'var(--text-secondary)' }">انجام ثابت</span>
                         </span>
                         <span class="font-black text-purple-300">{{ day.fixed_completed || 0 }}</span>
                       </div>
                       <div class="flex items-center justify-between gap-3">
                         <span class="flex items-center gap-1.5">
+                          <span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>
+                          <span class="font-bold" :style="{ color: 'var(--text-secondary)' }">کار دوره‌ای</span>
+                        </span>
+                        <span class="font-black text-amber-300">{{ day.recurring_planned || 0 }}</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="flex items-center gap-1.5">
                           <span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>
-                          <span class="font-bold" :style="{ color: 'var(--text-secondary)' }">دوره‌ای</span>
+                          <span class="font-bold" :style="{ color: 'var(--text-secondary)' }">انجام دوره‌ای</span>
                         </span>
                         <span class="font-black text-emerald-300">{{ day.recurring_completed || 0 }}</span>
                       </div>
                       <div class="flex items-center justify-between gap-3 pt-1.5 mt-1.5 border-t border-white/10">
-                        <span class="font-black" :style="{ color: 'var(--text-primary)' }">مجموع</span>
-                        <span class="font-black text-base" :style="{ color: 'var(--text-primary)' }">{{ day.completed || 0 }}</span>
+                        <span class="font-black" :style="{ color: 'var(--text-primary)' }">مجموع کار</span>
+                        <span class="font-black text-base" :style="{ color: 'var(--text-primary)' }">{{ day.planned_total || 0 }}</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="font-black text-emerald-300">مجموع انجام</span>
+                        <span class="font-black text-base text-emerald-300">{{ day.completed || 0 }}</span>
                       </div>
                     </div>
                     <!-- فلش popup - موقعیت بر اساس لبه -->
@@ -485,17 +518,17 @@ onMounted(() => {
                   </div>
                 </Transition>
 
-                <!-- عدد بالای میله (مجموع) -->
-                <span v-if="day.completed > 0" class="absolute -top-1 text-[10px] font-black px-1.5 py-0.5 rounded" :class="idx === weeklyStats.todayIndex ? 'text-amber-200 bg-amber-500/30 ring-1 ring-amber-400/40' : 'text-blue-200 bg-blue-500/20 ring-1 ring-blue-400/30'">{{ day.completed }}</span>
+                <!-- عدد بالای میله (انجام‌شده/برنامه) -->
+                <span v-if="dayBar(day).planned > 0 || dayBar(day).done > 0" class="absolute -top-1 text-[10px] font-black px-1.5 py-0.5 rounded" :class="idx === weeklyStats.todayIndex ? 'text-amber-200 bg-amber-500/30 ring-1 ring-amber-400/40' : 'text-blue-200 bg-blue-500/20 ring-1 ring-blue-400/30'">{{ dayBar(day).done }}/{{ dayBar(day).planned }}</span>
 
                 <!-- فضای میله + نام روز -->
                 <div class="w-full max-w-[36px] h-full flex flex-col items-center justify-end relative">
-                  <!-- میله Stacked: ثابت (بنفش، پایین) + دوره‌ای (سبز، بالا) -->
-                  <div class="w-full flex flex-col-reverse items-stretch overflow-hidden rounded-t-md ring-1 transition-all" :class="idx === weeklyStats.todayIndex ? 'ring-amber-400/60 shadow-lg shadow-amber-500/30' : 'ring-white/10 group-hover:ring-white/30'" :style="{ height: ((day.completed || 0) > 0 ? Math.max(8, ((day.completed / weeklyStats.maxValue) * 100)) : 0) + '%', minHeight: (day.completed > 0 ? '8px' : '0') }">
-                    <!-- بخش ثابت (بنفش) - در پایین -->
-                    <div v-if="(day.fixed_completed || 0) > 0" class="w-full bg-gradient-to-t from-purple-700 to-purple-500 transition-all duration-500" :style="{ height: weeklyStats.maxValue > 0 ? Math.max(2, ((day.fixed_completed / weeklyStats.maxValue) * 100)) + '%' : '0%' }"></div>
-                    <!-- بخش دوره‌ای (سبز) - در بالا -->
-                    <div v-if="(day.recurring_completed || 0) > 0" class="w-full bg-gradient-to-t from-emerald-700 to-emerald-400 transition-all duration-500" :style="{ height: weeklyStats.maxValue > 0 ? Math.max(2, ((day.recurring_completed / weeklyStats.maxValue) * 100)) + '%' : '0%' }"></div>
+                  <!-- میله: کل ارتفاع = برنامه‌ریزی‌شده (آبی) + بخش سبز پایین = انجام‌شده -->
+                  <div class="w-full flex flex-col items-stretch overflow-hidden rounded-t-md ring-1 transition-all" :class="idx === weeklyStats.todayIndex ? 'ring-amber-400/60 shadow-lg shadow-amber-500/30' : 'ring-white/10 group-hover:ring-white/30'" :style="{ height: dayBar(day).height + '%', minHeight: (dayBar(day).height > 0 ? '8px' : '0') }">
+                    <!-- بخش باقیمانده برنامه (آبی) - بالا -->
+                    <div v-if="dayBar(day).restH > 0" class="w-full bg-gradient-to-t from-blue-700 to-blue-400 transition-all duration-500" :style="{ height: dayBar(day).restH + '%' }"></div>
+                    <!-- بخش انجام‌شده (سبز) - پایین -->
+                    <div v-if="dayBar(day).doneH > 0" class="w-full bg-gradient-to-t from-emerald-700 to-emerald-400 transition-all duration-500" :style="{ height: dayBar(day).doneH + '%' }"></div>
                   </div>
                 </div>
 
@@ -510,8 +543,8 @@ onMounted(() => {
 
           <!-- راهنمای پایین -->
           <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2 border-t border-white/5 text-[10px] sm:text-xs">
-            <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-3 h-3 rounded-sm bg-gradient-to-t from-purple-700 to-purple-500"></span>ثابت</span>
-            <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-3 h-3 rounded-sm bg-gradient-to-t from-emerald-700 to-emerald-400"></span>دوره‌ای</span>
+            <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-3 h-3 rounded-sm bg-gradient-to-t from-blue-700 to-blue-400"></span>برنامه‌ریزی‌شده</span>
+            <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-3 h-3 rounded-sm bg-gradient-to-t from-emerald-700 to-emerald-400"></span>انجام‌شده</span>
             <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-3 h-3 rounded-full bg-amber-400"></span>امروز</span>
             <span class="flex items-center gap-1.5" :style="{ color: 'var(--text-secondary)' }"><span class="w-3 h-3 rounded-sm bg-blue-500/20 ring-1 ring-blue-400/30"></span>روی نمودار کلیک کنید</span>
           </div>
@@ -831,6 +864,7 @@ onMounted(() => {
             <div><label class="block text-[11px] text-gray-400">عنوان کار:</label><p class="text-sm font-black text-white mt-1">{{ selectedTaskForModal.title }}</p></div>
             <div><label class="block text-[11px] text-gray-400">هدف مرتبط:</label><p class="text-xs font-bold text-purple-300 mt-1">{{ selectedTaskForModal.goal_title }}</p></div>
             <div><label class="block text-[11px] text-gray-400">دسته‌بندی:</label><span class="inline-block px-2.5 py-1 rounded bg-white/10 text-xs font-bold text-gray-200 mt-1">{{ selectedTaskForModal.category || 'عمومی' }}</span></div>
+            <div v-if="!selectedTaskForModal.is_completed"><label class="block text-[11px] text-gray-400 mb-1">تاریخ انجام:</label><DateInputPersian v-model="selectedTaskForModal.done_date" /></div>
           </div>
 
           <div class="flex gap-3 pt-4 border-t border-white/10">

@@ -50,9 +50,9 @@ watch(() => props.modelValue, (isOpen) => {
   }
 })
 
-// همگام‌سازی اتوماتیک تاریخ آخرین اقدام با تغییر وضعیت به «در حال انجام» یا «تکمیل»
+// همگام‌سازی تاریخ آخرین اقدام با تغییر وضعیت — فقط وقتی خالی است تا تاریخ دستی کاربر (مثل روزهای قبل) پاک نشود
 watch(() => props.form.status, (newStatus) => {
-  if (newStatus === 'completed' || newStatus === 'in_progress') {
+  if ((newStatus === 'completed' || newStatus === 'in_progress') && !formValue.value.last_action_date) {
     formValue.value.last_action_date = todayISO
   }
 })
