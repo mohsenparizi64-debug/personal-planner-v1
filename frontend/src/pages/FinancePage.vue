@@ -6,13 +6,22 @@ import {
   Plus, Trash2, Edit3, X, Wallet, CreditCard, ArrowUp, ArrowDown,
   ChevronDown, ChevronUp, ShoppingBag, Utensils, Car, Home, HeartPulse,
   Smartphone, Gift, Landmark, Briefcase, HelpCircle, Package, ReceiptText,
-  Building2, TrendingUp, BarChart2, PieChart, RefreshCw, Eye, EyeOff
+  Building2, TrendingUp, BarChart2, PieChart, RefreshCw, Eye, EyeOff, Wrench,
+  GraduationCap, Plane, PiggyBank
 } from 'lucide-vue-next'
 import api from '@/services/api'
 import DateInputPersian from '@/components/DateInputPersian.vue'
 import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
+const isLight = computed(() => themeStore.currentTheme === 'light-2026')
+// پالت خوانا در هر دو تم (روشن: تیره با کنتراست بالا)
+const cEmerald = computed(() => isLight.value ? '#047857' : '#6ee7b7')
+const cRose = computed(() => isLight.value ? '#b91c1c' : '#fca5a5')
+const cBlue = computed(() => isLight.value ? '#1d4ed8' : '#93c5fd')
+const cPurple = computed(() => isLight.value ? '#6d28d9' : '#c4b5fd')
+const cAmber = computed(() => isLight.value ? '#b45309' : '#fcd34d')
+const cMuted = computed(() => isLight.value ? '#334155' : 'rgba(255,255,255,0.7)')
 const router = useRouter()
 const goToAccount = (id) => router.push(`/finance/${id}`)
 const accounts = ref([])
@@ -57,6 +66,10 @@ const categories = {
     { id: 'health', name: 'سلامت و درمان', icon: HeartPulse, color: '#ef4444' },
     { id: 'digital', name: 'اشتراک و ابزار دیجیتال', icon: Smartphone, color: '#06b6d4' },
     { id: 'loan', name: 'قسط و بدهی', icon: Landmark, color: '#64748b' },
+    { id: 'services', name: 'خدمات و سرویس‌ها', icon: Wrench, color: '#38bdf8' },
+    { id: 'education', name: 'آموزش و کتاب', icon: GraduationCap, color: '#a78bfa' },
+    { id: 'leisure', name: 'تفریح و سفر', icon: Plane, color: '#fbbf24' },
+    { id: 'saving', name: 'پس‌انداز و سرمایه‌گذاری', icon: PiggyBank, color: '#34d399' },
     { id: 'other_out', name: 'سایر هزینه‌ها', icon: HelpCircle, color: '#94a3b8' },
   ],
   deposit: [
@@ -382,12 +395,12 @@ onMounted(() => {
         <div>
           <h1 class="text-3xl font-black mb-1 drop-shadow-md">مدیریت امور مالی</h1>
           <p class="text-xs opacity-70">کنترل موجودی، حساب‌های بانکی و تراکنش‌ها</p>
-          <p class="text-xs mt-1.5 font-bold text-emerald-300">محدوده تحلیل: {{ scopeLabel }}</p>
+          <p class="text-xs mt-1.5 font-bold" :style="{ color: cEmerald }">محدوده تحلیل: {{ scopeLabel }}</p>
         </div>
         <div class="flex items-center gap-2">
           <div class="px-4 py-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-left">
             <p class="text-[10px] opacity-70 font-bold">جمع محدوده</p>
-            <p class="text-lg font-black text-emerald-300">{{ formatMoney(scopeTotalBalance) }}</p>
+            <p class="text-lg font-black" :style="{ color: cEmerald }">{{ formatMoney(scopeTotalBalance) }}</p>
           </div>
           <button @click="openNewAccount" class="px-5 py-3 rounded-2xl font-bold text-white transition flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95" :style="{ background: 'var(--accent)' }">
             <Plus class="w-5 h-5" /> تعریف حساب جدید
@@ -404,7 +417,7 @@ onMounted(() => {
         <div class="flex flex-wrap gap-1.5 sm:gap-2">
           <button @click="resetScope"
                   class="px-3 py-1.5 rounded-xl text-xs font-black border transition"
-                  :style="isScopeAll ? { background: '#9333ea', color: '#fff', borderColor: '#9333ea' } : { borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }">
+                  :style="isScopeAll ? { background: '#9333ea', color: '#fff', borderColor: '#9333ea' } : { borderColor: 'rgba(255,255,255,0.15)', color: cMuted }">
             همه ({{ accounts.filter(a => !a.is_hidden).length }})
           </button>
           <button v-for="acc in accounts" :key="acc.id"
@@ -412,7 +425,7 @@ onMounted(() => {
                   class="px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5"
                   :style="selectedAccountIds.includes(acc.id)
                     ? { background: '#0e7490', color: '#fff', borderColor: '#0e7490' }
-                    : { borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }">
+                    : { borderColor: 'rgba(255,255,255,0.15)', color: cMuted }">
             <span v-if="acc.is_hidden">🙈</span> {{ acc.name }}
           </button>
         </div>
@@ -453,33 +466,33 @@ onMounted(() => {
           <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
             <div class="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20">
               <p class="text-[10px] sm:text-xs font-bold opacity-70">مجموع واریز</p>
-              <p class="text-base sm:text-xl font-black text-emerald-300 mt-0.5 truncate">+{{ formatMoney(reportData.summary.deposit_total) }}</p>
-              <p class="text-[9px] text-emerald-400/70 font-bold">تومان</p>
+              <p class="text-base sm:text-xl font-black mt-0.5 truncate" :style="{ color: cEmerald }">+{{ formatMoney(reportData.summary.deposit_total) }}</p>
+              <p class="text-[9px] font-bold" :style="{ color: cEmerald }">تومان</p>
             </div>
             <div class="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-br from-rose-500/10 to-red-500/10 border border-rose-500/20">
               <p class="text-[10px] sm:text-xs font-bold opacity-70">مجموع برداشت</p>
-              <p class="text-base sm:text-xl font-black text-rose-300 mt-0.5 truncate">-{{ formatMoney(reportData.summary.withdraw_total) }}</p>
-              <p class="text-[9px] text-rose-400/70 font-bold">تومان</p>
+              <p class="text-base sm:text-xl font-black mt-0.5 truncate" :style="{ color: cRose }">-{{ formatMoney(reportData.summary.withdraw_total) }}</p>
+              <p class="text-[9px] font-bold" :style="{ color: cRose }">تومان</p>
             </div>
             <div class="p-3 sm:p-4 rounded-xl sm:rounded-2xl border"
                  :class="reportData.summary.balance_net >= 0 ? 'bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/20' : 'bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20'">
               <p class="text-[10px] sm:text-xs font-bold opacity-70">تراز خالص</p>
               <p class="text-base sm:text-xl font-black mt-0.5 truncate"
-                 :class="reportData.summary.balance_net >= 0 ? 'text-blue-300' : 'text-amber-300'">
+                 :style="{ color: reportData.summary.balance_net >= 0 ? cBlue : cAmber }">
                 {{ reportData.summary.balance_net >= 0 ? '+' : '-' }}{{ formatMoney(reportData.summary.balance_net) }}
               </p>
               <p class="text-[9px] opacity-70 font-bold">تومان</p>
             </div>
             <div class="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
               <p class="text-[10px] sm:text-xs font-bold opacity-70">پرهزینه‌ترین</p>
-              <p class="text-sm sm:text-base font-black text-purple-300 mt-0.5 truncate" v-if="reportData.summary.top_category">
+              <p class="text-sm sm:text-base font-black mt-0.5 truncate" :style="{ color: cPurple }" v-if="reportData.summary.top_category">
                 {{ getCategoryById(reportData.summary.top_category.id).name }}
               </p>
-              <p class="text-sm sm:text-base font-black text-purple-300 mt-0.5" v-else>—</p>
-              <p class="text-[9px] text-purple-400/70 font-bold" v-if="reportData.summary.top_category">
+              <p class="text-sm sm:text-base font-black mt-0.5" :style="{ color: cPurple }" v-else>—</p>
+              <p class="text-[9px] font-bold" :style="{ color: cPurple }" v-if="reportData.summary.top_category">
                 {{ reportData.summary.transaction_count }} تراکنش
               </p>
-              <p class="text-[9px] text-purple-400/70 font-bold" v-else>—</p>
+              <p class="text-[9px] font-bold" :style="{ color: cPurple }" v-else>—</p>
             </div>
           </div>
 
@@ -598,8 +611,8 @@ onMounted(() => {
                    class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-black/30 border border-white/5 text-xs">
                 <span class="font-black truncate" :style="{ color: 'var(--text-primary)' }">{{ accountNameById(ab.account_id) }}</span>
                 <span class="flex items-center gap-2 font-bold shrink-0">
-                  <span class="text-emerald-300">+{{ formatNumber(ab.deposit) }}</span>
-                  <span class="text-rose-300">−{{ formatNumber(ab.withdraw) }}</span>
+                  <span :style="{ color: cEmerald }">+{{ formatNumber(ab.deposit) }}</span>
+                  <span :style="{ color: cRose }">−{{ formatNumber(ab.withdraw) }}</span>
                   <span class="opacity-50">({{ ab.count }})</span>
                 </span>
               </div>
@@ -637,20 +650,20 @@ onMounted(() => {
                     <span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>
                     مجموع واریز
                   </span>
-                  <span class="font-black text-emerald-300 dir-ltr text-xs">{{ formatMoney(selectedReportDay.deposit) }}</span>
+                  <span class="font-black dir-ltr text-xs" :style="{ color: cEmerald }">{{ formatMoney(selectedReportDay.deposit) }}</span>
                 </div>
                 <div class="flex items-center justify-between p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
                   <span class="flex items-center gap-2 text-xs font-bold">
                     <span class="w-2.5 h-2.5 rounded-sm bg-rose-500"></span>
                     مجموع برداشت
                   </span>
-                  <span class="font-black text-rose-300 dir-ltr text-xs">{{ formatMoney(selectedReportDay.withdraw) }}</span>
+                  <span class="font-black dir-ltr text-xs" :style="{ color: cRose }">{{ formatMoney(selectedReportDay.withdraw) }}</span>
                 </div>
                 <div class="flex items-center justify-between p-2.5 rounded-xl border"
                      :class="(selectedReportDay.deposit - selectedReportDay.withdraw) >= 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-amber-500/10 border-amber-500/20'">
                   <span class="text-xs font-bold">تراز {{ reportData?.bucket === 'week' ? 'هفته' : 'روز' }}</span>
                   <span class="font-black text-xs dir-ltr"
-                        :class="(selectedReportDay.deposit - selectedReportDay.withdraw) >= 0 ? 'text-blue-300' : 'text-amber-300'">
+                        :style="{ color: (selectedReportDay.deposit - selectedReportDay.withdraw) >= 0 ? cBlue : cAmber }">
                     {{ (selectedReportDay.deposit - selectedReportDay.withdraw) >= 0 ? '+' : '-' }}{{ formatMoney(Math.abs(selectedReportDay.deposit - selectedReportDay.withdraw)) }}
                   </span>
                 </div>
@@ -700,7 +713,7 @@ onMounted(() => {
         <p class="text-xs mt-2 opacity-60">برای شروع، روی «تعریف حساب جدید» در بالا کلیک کنید</p>
       </div>
 
-      <div v-else class="grid grid-cols-2 gap-2 sm:gap-4">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         <div v-for="(acc, idx) in accounts" :key="acc.id"
              class="relative rounded-2xl overflow-hidden border shadow-2xl transition-all duration-300 hover:scale-[1.01] hover:shadow-purple-500/20"
              :class="acc.is_hidden ? 'border-dashed border-amber-400/40 opacity-90' : 'border-white/10'"
@@ -722,7 +735,7 @@ onMounted(() => {
               </div>
               <div class="min-w-0">
                 <p class="text-[8px] sm:text-[10px] opacity-70 font-bold uppercase tracking-wider">حساب</p>
-                <h3 class="text-[11px] sm:text-base font-black truncate max-w-[90px] sm:max-w-[140px]">{{ acc.name }} <span v-if="acc.is_hidden" title="موجودی مخفی">🙈</span></h3>
+                <h3 class="text-[11px] sm:text-base font-black truncate max-w-[160px] sm:max-w-[140px]">{{ acc.name }} <span v-if="acc.is_hidden" title="موجودی مخفی">🙈</span></h3>
               </div>
             </div>
             <div class="text-left min-w-0">
@@ -759,11 +772,6 @@ onMounted(() => {
 
           <!-- نوار دکمه‌ها -->
           <div class="relative px-1.5 sm:px-4 py-1.5 sm:py-3 bg-black/30 backdrop-blur-md flex items-center gap-1 sm:gap-2">
-            <button @click.stop="goToAccount(acc.id)"
-                    class="flex-1 py-1 sm:py-2 rounded-md sm:rounded-lg bg-blue-500/90 hover:bg-blue-400 text-white text-[9px] sm:text-xs font-black flex items-center justify-center gap-0.5 sm:gap-1 transition shadow-md"
-                    title="باز کردن صفحه اختصاصی حساب">
-              <span class="truncate">📄 صفحه حساب</span>
-            </button>
             <button @click.stop="openNewTransaction(acc)"
                     class="flex-1 py-1 sm:py-2 rounded-md sm:rounded-lg bg-emerald-500/90 hover:bg-emerald-400 text-white text-[9px] sm:text-xs font-black flex items-center justify-center gap-0.5 sm:gap-1 transition shadow-md"
                     title="تراکنش جدید">
@@ -810,7 +818,7 @@ onMounted(() => {
                   <p class="font-black text-sm sm:text-base" :class="trans.transaction_type === 'deposit' ? 'text-emerald-300' : 'text-rose-300'">
                     {{ trans.transaction_type === 'deposit' ? '+' : '-' }} {{ formatMoney(trans.amount) }}
                   </p>
-                  <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div class="flex gap-1 transition-opacity">
                     <button @click="openEditTransaction(acc, trans)" class="p-1 rounded hover:bg-white/10"><Edit3 class="w-3.5 h-3.5" /></button>
                     <button @click="deleteTransaction(trans.id)" class="p-1 rounded hover:bg-red-500/20 text-red-300"><Trash2 class="w-3.5 h-3.5" /></button>
                   </div>
@@ -854,7 +862,7 @@ onMounted(() => {
               <input :value="formatNumber(accountForm.current_balance)" @input="accountForm.current_balance = parseNumber($event.target.value)"
                      inputmode="numeric"
                      class="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-white/10 bg-black/40 outline-none text-base sm:text-lg font-bold text-emerald-400 focus:ring-2 focus:ring-emerald-500/50" />
-              <p class="text-[10px] mt-1 text-emerald-300 font-medium pr-1 truncate">{{ numberToPersianWords(parseNumber(accountForm.current_balance)) }}</p>
+              <p class="text-[10px] mt-1 font-medium pr-1 truncate" :style="{ color: cEmerald }">{{ numberToPersianWords(parseNumber(accountForm.current_balance)) }}</p>
             </div>
             <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition"
                    :class="accountForm.is_hidden ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-black/40'">
@@ -925,7 +933,7 @@ onMounted(() => {
                    :style="{ color: transactionForm.transaction_type === 'deposit' ? '#22c55e' : '#ef4444' }"
                    :class="errors.amount ? 'ring-2 ring-rose-500' : ''"
                    inputmode="numeric" />
-            <p class="text-[10px] sm:text-xs mt-1.5 text-center font-bold text-emerald-400 truncate">{{ numberToPersianWords(parseNumber(transactionForm.amount)) }}</p>
+            <p class="text-[10px] sm:text-xs mt-1.5 text-center font-bold truncate" :style="{ color: cEmerald }">{{ numberToPersianWords(parseNumber(transactionForm.amount)) }}</p>
           </div>
 
           <!-- اقلام (فقط برداشت) -->
