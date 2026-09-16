@@ -39,7 +39,7 @@ const todayJalaliYear = ref(0)
 const todayJalaliMonth = ref(0)
 const todayJalaliDay = ref(0)
 
-const setToCurrentShamsi = () => {
+const refreshTodayRefs = () => {
   const now = new Date()
   // استفاده از Intl برای تبدیل به شمسی
   const formatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
@@ -53,13 +53,37 @@ const setToCurrentShamsi = () => {
     else if (p.type === 'day') d = parseInt(p.value.replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)), 10)
   }
   if (y && m && d) {
-    currentJalaliYear.value = y
-    currentJalaliMonth.value = m
-    selectedDay.value = d
     todayJalaliYear.value = y
     todayJalaliMonth.value = m
     todayJalaliDay.value = d
   }
+  return { y, m, d }
+}
+
+const setToCurrentShamsi = () => {
+  const { y, m, d } = refreshTodayRefs()
+  if (y && m && d) {
+    currentJalaliYear.value = y
+    currentJalaliMonth.value = m
+    selectedDay.value = d
+  }
+}
+
+// تقویم هنگام باز شدن: اگر تاریخی ذخیره شده همان ماه/روز را نشان بده، وگرنه امروز
+const syncCalendarViewOnOpen = () => {
+  refreshTodayRefs()
+  const raw = String(props.modelValue || '').slice(0, 10)
+  const sh = toShamsiDisplay(raw)
+  if (sh) {
+    const [y, m, d] = sh.split('/').map(Number)
+    if (y && m && d) {
+      currentJalaliYear.value = y
+      currentJalaliMonth.value = m
+      selectedDay.value = d
+      return
+    }
+  }
+  setToCurrentShamsi()
 }
 
 const jalaliMonths = [
@@ -257,17 +281,14 @@ async function toggleCalendar(e) {
     return
   }
   calendarViewMode.value = 'days'
-  // 🆕 اگر modelValue خالی است، تقویم با تاریخ جاری شمسی باز شود
-  if (!props.modelValue) {
-    setToCurrentShamsi()
-  }
+  // همگام‌سازی نمای تقویم با مقدار ذخیره‌شده یا امروز، در هر بار باز شدن
+  syncCalendarViewOnOpen()
   // استفاده از event target مستقیم - بدون نیاز به ref/nextTick
   const triggerEl = e?.currentTarget
   // اول popup رو در state فعال کن (با position موقت وسط صفحه)
   // بعد در frame بعد، اگه trigger داشتیم، دقیق‌تر محاسبه کن
   centerPopupInViewport()
   showCalendarPicker.value = true
-  console.log('[DateInput] opened at', popupStyle.value, 'viewport:', window.innerWidth, 'x', window.innerHeight, 'triggerEl:', triggerEl?.tagName)
 }
 
 // popup را دقیقاً در مرکز viewport فعلی قرار بده
@@ -278,7 +299,6 @@ function centerPopupInViewport() {
   const vh = window.innerHeight
   const top = Math.max(20, Math.round((vh - popupHeight) / 2))
   const left = Math.max(20, Math.round((vw - popupWidth) / 2))
-  console.log('[DateInput] centering:', { top, left, vw, vh })
   popupStyle.value = {
     top: `${top}px`,
     left: `${left}px`,

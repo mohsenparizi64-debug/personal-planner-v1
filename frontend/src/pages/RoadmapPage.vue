@@ -178,7 +178,8 @@ const toggleTask = async (task) => {
 
 const openEditTask = (task) => {
   editingTask.value = task
-  taskForm.value = { ...task }
+  // درخت نقشه راه goal_id را برنمی‌گرداند؛ از هدف فعال صفحه پر می‌کنیم تا دراپ‌داون خالی نماند
+  taskForm.value = { ...task, goal_id: task.goal_id ?? selectedGoalId.value ?? null }
   showTaskModal.value = true
 }
 

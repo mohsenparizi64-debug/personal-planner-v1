@@ -11,6 +11,7 @@ class AccountBase(BaseModel):
     bank_name: Optional[str] = None
     sheba_number: Optional[str] = None
     current_balance: float = 0
+    is_hidden: bool = False
     register_date: Optional[GDate] = None
 
 class AccountCreate(AccountBase):
@@ -21,6 +22,7 @@ class AccountUpdate(BaseModel):
     bank_name: Optional[str] = None
     sheba_number: Optional[str] = None
     current_balance: Optional[float] = None
+    is_hidden: Optional[bool] = None
     register_date: Optional[GDate] = None
 
 class AccountRead(AccountBase):

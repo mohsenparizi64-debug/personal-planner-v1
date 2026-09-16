@@ -57,6 +57,12 @@ async def delete_transaction(trans_id: int, db: AsyncSession = Depends(get_db), 
 # ====== گزارش چند-بازه‌ای ======
 # این مسیر قبل از /transactions/{trans_id} اهمیتی ندارد چون path متفاوته، اما برای خوانایی اینجاست
 @router.get("/recent-report")
-async def recent_report(days: int = 7, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """گزارش تراکنش‌های بازه اخیر (7/30/90 روز) برای صفحه مالی"""
-    return await finance_crud.get_recent_finance_report(db, current_user.id, days)
+async def recent_report(days: int = 7, account_ids: str | None = None, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """گزارش تراکنش‌های بازه اخیر (7/30/90 روز) برای صفحه مالی؛ account_ids CSV اختیاری برای تحلیل انتخابی"""
+    ids = None
+    if account_ids:
+        try:
+            ids = [int(x) for x in account_ids.split(",") if x.strip().isdigit()]
+        except Exception:
+            ids = None
+    return await finance_crud.get_recent_finance_report(db, current_user.id, days, ids)

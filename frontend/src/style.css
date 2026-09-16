@@ -408,3 +408,58 @@ body {
 .light-2026 .text-blue-400 { color: #1e40af !important; }
 .light-2026 .text-emerald-300 { color: #047857 !important; }
 .light-2026 .text-emerald-400 { color: #065f46 !important; }
+
+/* ===== تکمیل خودکار تم روشن (audit 2026-09-15 — سازگار با همه تم‌ها: فقط در light اعمال می‌شود، تم تیره دست‌نخورده) ===== */
+/* --- شیدهای 200 (روشن‌ترین، روی سفید نامرئی بودند) --- */
+.light-2026 .text-purple-200 { color: #6d28d9 !important; }
+.light-2026 .text-blue-200 { color: #1d4ed8 !important; }
+.light-2026 .text-emerald-200 { color: #047857 !important; }
+.light-2026 .text-green-200 { color: #15803d !important; }
+.light-2026 .text-amber-200 { color: #b45309 !important; }
+.light-2026 .text-yellow-200 { color: #a16207 !important; }
+.light-2026 .text-orange-200 { color: #c2410c !important; }
+.light-2026 .text-red-200 { color: #b91c1c !important; }
+.light-2026 .text-rose-200 { color: #be123c !important; }
+.light-2026 .text-teal-200 { color: #0f766e !important; }
+.light-2026 .text-cyan-200 { color: #0e7490 !important; }
+.light-2026 .text-sky-200 { color: #0369a1 !important; }
+.light-2026 .text-indigo-200 { color: #4338ca !important; }
+.light-2026 .text-pink-200 { color: #be185d !important; }
+.light-2026 .text-lime-200 { color: #4d7c0f !important; }
+.light-2026 .text-slate-200 { color: #334155 !important; }
+.light-2026 .text-slate-500 { color: #475569 !important; }
+/* --- متن‌های سفید نیمه‌شفاف (روی کارت سفید نامرئی بودند) --- */
+.light-2026 .text-white\/30 { color: rgba(15, 23, 42, 0.45) !important; }
+.light-2026 .text-white\/40 { color: rgba(15, 23, 42, 0.55) !important; }
+.light-2026 .text-white\/50 { color: rgba(15, 23, 42, 0.65) !important; }
+.light-2026 .text-white\/60 { color: rgba(15, 23, 42, 0.72) !important; }
+.light-2026 .text-white\/70 { color: #475569 !important; }
+.light-2026 .text-white\/80 { color: #334155 !important; }
+.light-2026 .text-white\/85 { color: #0f172a !important; }
+.light-2026 .placeholder-white\/40::placeholder { color: #94a3b8 !important; }
+/* --- پوسته‌های مودال و کارت تیره (bg-gray-900 = پوسته مودال کتاب/فیلم/مکان) --- */
+.light-2026 .bg-gray-900,
+.light-2026 .bg-gray-900\/95 {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 10px 30px -3px rgba(15, 23, 42, 0.08) !important;
+}
+.light-2026 .bg-slate-900\/60 { background-color: rgba(255, 255, 255, 0.85) !important; color: #0f172a !important; }
+.light-2026 .bg-slate-900\/80 { background-color: rgba(255, 255, 255, 0.92) !important; color: #0f172a !important; }
+.light-2026 .bg-slate-900\/90 { background-color: rgba(255, 255, 255, 0.95) !important; color: #0f172a !important; }
+.light-2026 .bg-slate-900\/98 { background-color: #ffffff !important; color: #0f172a !important; }
+/* --- مشکی‌های نیمه‌شفاف جاافتاده (bg-black/40 = سلکت کتاب/فیلم/مکان، ۳۹ مورد) --- */
+.light-2026 .bg-black\/20 { background-color: rgba(15, 23, 42, 0.06) !important; }
+.light-2026 .bg-black\/40 { background-color: rgba(15, 23, 42, 0.05) !important; }
+.light-2026 .bg-black\/50 { background-color: rgba(15, 23, 42, 0.08) !important; }
+.light-2026 .bg-black\/60 { background-color: rgba(15, 23, 42, 0.10) !important; }
+.light-2026 .bg-black\/70 { background-color: rgba(15, 23, 42, 0.12) !important; }
+.light-2026 .bg-black\/85 { background-color: rgba(248, 250, 252, 0.95) !important; }
+.light-2026 .border-white\/30 { border-color: rgba(15, 23, 42, 0.22) !important; }
+/* --- هاورها در تم روشن (هاور سفید روی سفید = ناپدید شدن متن) --- */
+.light-2026 .hover\:bg-white\/10:hover { background-color: rgba(15, 23, 42, 0.06) !important; }
+.light-2026 .hover\:bg-white\/20:hover { background-color: rgba(15, 23, 42, 0.10) !important; }
+.light-2026 .hover\:text-white:hover { color: #0f172a !important; }
+/* --- آپشن‌های select در تم روشن (منوی کشویی تیره می‌ماند، متن باید روشن بماند) --- */
+.light-2026 select option { background-color: #ffffff !important; color: #0f172a !important; }

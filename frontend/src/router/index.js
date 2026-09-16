@@ -9,6 +9,7 @@ import TasksPage from '@/pages/TasksPage.vue'
 import GoalsPage from '@/pages/GoalsPage.vue'
 import RoadmapPage from '@/pages/RoadmapPage.vue'
 import FinancePage from '@/pages/FinancePage.vue'
+import FinanceAccountPage from '@/pages/FinanceAccountPage.vue'
 import MoviesPage from '@/pages/MoviesPage.vue'
 import BooksPage from '@/pages/BooksPage.vue'
 import PlacesPage from '@/pages/PlacesPage.vue'
@@ -33,6 +34,7 @@ const routes = [
   { path: '/goals', component: GoalsPage, meta: { requiresAuth: true } },
   { path: '/roadmap', component: RoadmapPage, meta: { requiresAuth: true } },
   { path: '/finance', component: FinancePage, meta: { requiresAuth: true } },
+  { path: '/finance/:id', component: FinanceAccountPage, meta: { requiresAuth: true } },
   { path: '/movies', component: MoviesPage, meta: { requiresAuth: true } },
   { path: '/books', component: BooksPage, meta: { requiresAuth: true } },
   { path: '/places', component: PlacesPage, meta: { requiresAuth: true } },

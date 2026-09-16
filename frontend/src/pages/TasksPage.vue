@@ -683,7 +683,7 @@ onMounted(async () => {
     <!-- Header Section -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
       <div>
-        <h1 class="text-2xl md:text-3xl lg:text-4xl font-black mb-1 flex items-center gap-2.5 text-white" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''">
+        <h1 class="text-2xl md:text-3xl lg:text-4xl font-black mb-1 flex items-center gap-2.5" :style="{ color: 'var(--text-primary)' }" :class="themeStore.currentTheme === 'cyber-digital' ? 'neon-text' : ''">
           <ListTodo class="w-7 h-7 md:w-8 md:h-8 text-purple-400" /> میز کار
         </h1>
         <p :style="{ color: 'var(--text-secondary)' }" class="text-xs md:text-sm font-bold">مدیریت، زمان‌بندی و پایش پیشرفت کارهای روزانه و دوره‌ای</p>
@@ -863,7 +863,7 @@ onMounted(async () => {
           <span class="text-xs font-black text-white">{{ taskTypeSummary.fixedDone }} از {{ taskTypeSummary.fixedTotal }}</span>
         </div>
         <div class="mt-2 h-2 rounded-full bg-white/10 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-l from-cyan-600 to-cyan-300 transition-all" :style="{ width: taskTypeSummary.fixedPct + '%' }"></div></div>
-        <p class="mt-1.5 text-[10px] font-bold text-cyan-200/80">{{ taskTypeSummary.fixedPct }}٪ انجام شده</p>
+        <p class="mt-1.5 text-[10px] font-bold text-cyan-200/80" :style="{ color: themeStore.currentTheme === 'light-2026' ? '#0e7490' : '' }">{{ taskTypeSummary.fixedPct }}٪ انجام شده</p>
       </div>
       <div class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20">
         <div class="flex items-center justify-between gap-2">
@@ -871,7 +871,7 @@ onMounted(async () => {
           <span class="text-xs font-black text-white">{{ taskTypeSummary.recDone }} از {{ taskTypeSummary.recTotal }}</span>
         </div>
         <div class="mt-2 h-2 rounded-full bg-white/10 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-l from-amber-600 to-amber-300 transition-all" :style="{ width: taskTypeSummary.recPct + '%' }"></div></div>
-        <p class="mt-1.5 text-[10px] font-bold text-amber-200/80">{{ taskTypeSummary.recPct }}٪ انجام شده</p>
+        <p class="mt-1.5 text-[10px] font-bold text-amber-200/80" :style="{ color: themeStore.currentTheme === 'light-2026' ? '#b45309' : '' }">{{ taskTypeSummary.recPct }}٪ انجام شده</p>
       </div>
       <p class="text-[10px] leading-5 text-gray-400 font-bold border-t border-white/5 pt-2">💡 در کارهای دوره‌ای، کارهای تکمیل‌شده و کارهای در انتظار موعد (که هنوز عقب نیفتاده‌اند) انجام‌شده حساب می‌شوند؛ فقط کارهای عقب‌افتاده انجام‌نشده‌اند.</p>
     </div>
@@ -1012,7 +1012,7 @@ onMounted(async () => {
           <!-- عنوان کارت (بدون چک‌باکس) -->
           <div class="mb-2.5">
             <h3 class="leading-snug transition line-clamp-2"
-                :style="{ fontFamily: 'BNazanin, Vazirmatn, serif', fontWeight: 'bold', fontSize: '1.15em', letterSpacing: '-0.01em', color: (task.is_completed || task.status === 'completed') ? 'rgba(255,255,255,0.45)' : isTaskOverdue(task) ? '#ffffff' : (fontColorMode === 'dark' ? '#0f172a' : '#ffffff') }">
+                :style="{ fontFamily: 'BNazanin, Vazirmatn, serif', fontWeight: 'bold', fontSize: '1.15em', letterSpacing: '-0.01em', color: themeStore.currentTheme === 'light-2026' ? ((task.is_completed || task.status === 'completed') ? '#94a3b8' : isTaskOverdue(task) ? '#b91c1c' : '#0f172a') : ((task.is_completed || task.status === 'completed') ? 'rgba(255,255,255,0.45)' : isTaskOverdue(task) ? '#ffffff' : (fontColorMode === 'dark' ? '#0f172a' : '#ffffff')) }">
               {{ task.title }}
             </h3>
             <!-- خط تزئینی زیر عنوان -->
@@ -1020,7 +1020,7 @@ onMounted(async () => {
           </div>
 
           <!-- توضیحات -->
-          <p v-if="task.description" class="line-clamp-1 mb-2 text-[10px] sm:text-xs" :style="{ color: fontColorMode === 'dark' ? '#475569' : 'rgba(255,255,255,0.75)' }">{{ task.description }}</p>
+          <p v-if="task.description" class="line-clamp-1 mb-2 text-[10px] sm:text-xs" :style="{ color: themeStore.currentTheme === 'light-2026' ? '#475569' : (fontColorMode === 'dark' ? '#475569' : 'rgba(255,255,255,0.75)') }">{{ task.description }}</p>
         </div>
 
         <div class="-mx-3 sm:-mx-5 -mb-3 sm:-mb-5 mt-2 px-3 sm:px-5 py-2.5 rounded-b-2xl md:rounded-b-3xl space-y-1.5" style="background: #000000; border-top: 1px solid rgba(255,255,255,0.08);">
@@ -1089,11 +1089,11 @@ onMounted(async () => {
             <Circle class="w-2.5 h-2.5 fill-current" :style="{ color: themeStore.currentTheme === 'light-2026' ? '#0e7490' : '#67e8f9' }" />
           </span>
           <span class="truncate font-black"
-                :style="{ fontFamily: 'BNazanin, Vazirmatn, serif', fontSize: '1.1em', color: (task.is_completed || task.status === 'completed') ? 'rgba(255,255,255,0.45)' : isTaskOverdue(task) ? '#ffffff' : (fontColorMode === 'dark' ? '#0f172a' : '#ffffff') }">{{ task.title }}</span>
+                :style="{ fontFamily: 'BNazanin, Vazirmatn, serif', fontSize: '1.1em', color: themeStore.currentTheme === 'light-2026' ? ((task.is_completed || task.status === 'completed') ? '#94a3b8' : isTaskOverdue(task) ? '#b91c1c' : '#0f172a') : ((task.is_completed || task.status === 'completed') ? 'rgba(255,255,255,0.45)' : isTaskOverdue(task) ? '#ffffff' : (fontColorMode === 'dark' ? '#0f172a' : '#ffffff')) }">{{ task.title }}</span>
         </div>
 
         <div class="flex items-center gap-2 shrink-0" @click.stop>
-          <span class="text-[10px] sm:text-xs font-bold" :style="{ color: isTaskOverdue(task) ? '#fca5a5' : (fontColorMode === 'dark' ? '#475569' : 'rgba(255,255,255,0.75)') }">{{ getNextActionDate(task) }}</span>
+          <span class="text-[10px] sm:text-xs font-bold" :style="{ color: themeStore.currentTheme === 'light-2026' ? (isTaskOverdue(task) ? '#b91c1c' : '#475569') : (isTaskOverdue(task) ? '#fca5a5' : (fontColorMode === 'dark' ? '#475569' : 'rgba(255,255,255,0.75)')) }">{{ getNextActionDate(task) }}</span>
           <button @click="openEditForm(task)" class="p-1.5 rounded-lg transition" style="background: rgba(255,255,255,0.08); color: #e5e7eb; border: 1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.18)';this.style.color='#ffffff'" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.color='#e5e7eb'"><Edit3 class="w-3.5 h-3.5" /></button>
           <button @click="deleteTask(task.id)" class="p-1.5 rounded-lg transition" style="background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);" onmouseover="this.style.background='rgba(239,68,68,0.3)';this.style.color='#ffffff'" onmouseout="this.style.background='rgba(239,68,68,0.15)';this.style.color='#fca5a5'"><Trash2 class="w-3.5 h-3.5" /></button>
         </div>

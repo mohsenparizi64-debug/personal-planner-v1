@@ -30,6 +30,61 @@ def get_persian_day_name(d: date) -> str:
     }
     return mapping.get(d.weekday(), "شنبه")
 
+
+# ---------- خط‌کش واحد «انجام‌شده» (گزینه A: همان منطق میزکار) ----------
+# میزکار: کار ثابت = تیک خورده؛ کار دوره‌ای = عقب‌نیفتاده.
+# این هلپرها آینه Python همان منطق فرانت (computeNextActionDateISO / isTaskOverdue) هستند.
+def _is_recurring_task(t) -> bool:
+    return bool(t.recurrence_type and t.recurrence_type != 'none')
+
+
+def _next_action_iso(t, today: date) -> str:
+    if getattr(t, 'suggested_due_date', None):
+        return str(t.suggested_due_date)[:10]
+    if _is_recurring_task(t) and (t.is_completed or (t.status or '') in ('completed', 'not_started')):
+        base = t.last_action_date or today
+        iv = int(t.recurrence_interval or 1) or 1
+        rtype = t.recurrence_type
+        if rtype == 'daily':
+            base = base + timedelta(days=iv)
+        elif rtype == 'weekly':
+            base = base + timedelta(weeks=iv)
+        elif rtype == 'monthly':
+            m = base.month - 1 + iv
+            y = base.year + m // 12
+            m = m % 12 + 1
+            import calendar as _cal
+            d = min(base.day, _cal.monthrange(y, m)[1])
+            base = date(y, m, d)
+        elif rtype == 'yearly':
+            try:
+                base = date(base.year + iv, base.month, base.day)
+            except ValueError:
+                base = date(base.year + iv, base.month, 28)
+        return base.isoformat()
+    for d in (getattr(t, 'due_date', None), getattr(t, 'register_date', None), getattr(t, 'last_action_date', None)):
+        if d:
+            return str(d)[:10]
+    return ''
+
+
+def _is_done_unified(t, today: date, today_iso: str) -> bool:
+    if t.is_completed or (t.status or '') == 'completed':
+        return True
+    if _is_recurring_task(t):
+        nxt = _next_action_iso(t, today)
+        return (not nxt) or (nxt >= today_iso)
+    return False
+
+
+def _sub_goal_auto_progress(sg, today: date, today_iso: str):
+    """پیشرفت خودکار گام از روی کارهای لینک‌شده؛ None یعنی کاری لینک نیست (فallback دستی)."""
+    flags = [_is_done_unified(t, today, today_iso) for t in (sg.main_tasks or [])]
+    flags += [bool(x.is_completed) for x in (getattr(sg, 'dedicated_tasks', None) or [])]
+    if not flags:
+        return None
+    return round(sum(1 for f in flags if f) / len(flags) * 100)
+
 @router.get("/overview")
 async def get_overview(
     db: AsyncSession = Depends(get_db),
@@ -95,23 +150,36 @@ async def get_overview(
     goals_result = await db.execute(
         select(Goal)
         .where(Goal.owner_id == current_user.id)
-        .options(selectinload(Goal.sub_goals), selectinload(Goal.main_tasks))
+        .options(
+            selectinload(Goal.sub_goals).selectinload(SubGoal.main_tasks),
+            selectinload(Goal.sub_goals).selectinload(SubGoal.dedicated_tasks),
+            selectinload(Goal.main_tasks),
+        )
     )
     goals = goals_result.scalars().all()
 
+    _today = date.today()
+    _today_iso = _today.isoformat()
     calculated_goals = []
     for g in goals:
         sub_goals_count = len(g.sub_goals)
-        
+
         if sub_goals_count > 0:
-            # میانگین پیشرفت واقعی گام‌های عملیاتی
-            total_sub_progress = sum(sg.progress_percent or 0 for sg in g.sub_goals)
-            calc_progress = round(total_sub_progress / sub_goals_count)
+            # گزینه A: میانگین پیشرفت خودکار گام‌ها از روی کارهای لینک‌شده؛
+            # گام بدون کار لینک‌شده → همان عدد دستی قبلی (fallback)
+            parts = []
+            for sg in g.sub_goals:
+                auto = _sub_goal_auto_progress(sg, _today, _today_iso)
+                parts.append(auto if auto is not None else (sg.progress_percent or 0))
+            calc_progress = round(sum(parts) / len(parts)) if parts else (g.progress_percent or 0)
         else:
-            # در صورت عدم وجود گام عملیاتی، سنجش بر اساس تسک‌های مستقیم یا درصد دستی
+            # در صورت عدم وجود گام عملیاتی: نسبت انجام‌شده با خط‌کش واحد میزکار
             total_tasks = len(g.main_tasks)
-            completed_tasks = sum(1 for t in g.main_tasks if t.is_completed)
-            calc_progress = round((completed_tasks / total_tasks * 100)) if total_tasks > 0 else (g.progress_percent or 0)
+            if total_tasks > 0:
+                done_tasks = sum(1 for t in g.main_tasks if _is_done_unified(t, _today, _today_iso))
+                calc_progress = round(done_tasks / total_tasks * 100)
+            else:
+                calc_progress = (g.progress_percent or 0)
         
         calculated_goals.append({
             "id": g.id,
@@ -263,6 +331,7 @@ async def get_analytics(
 ):
     today = date.today()
     start_date = today - timedelta(days=days)
+    _today_iso = today.isoformat()
 
     # ۱. تحلیل تسک‌ها به تفکیک اهداف کلان
     goals_res = await db.execute(
@@ -274,8 +343,8 @@ async def get_analytics(
     goal_analytics = []
     for g in goals:
         completed_in_period = sum(
-            1 for t in g.main_tasks 
-            if t.is_completed and t.last_action_date and t.last_action_date >= start_date
+            1 for t in g.main_tasks
+            if _is_done_unified(t, today, _today_iso) and t.last_action_date and t.last_action_date >= start_date
         )
         goal_analytics.append({
             "goal_id": g.id,

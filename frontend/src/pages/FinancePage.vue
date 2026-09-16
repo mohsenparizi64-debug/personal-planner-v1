@@ -1,21 +1,51 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import {
   Plus, Trash2, Edit3, X, Wallet, CreditCard, ArrowUp, ArrowDown,
   ChevronDown, ChevronUp, ShoppingBag, Utensils, Car, Home, HeartPulse,
   Smartphone, Gift, Landmark, Briefcase, HelpCircle, Package, ReceiptText,
-  Building2, TrendingUp, BarChart2, PieChart, RefreshCw
+  Building2, TrendingUp, BarChart2, PieChart, RefreshCw, Eye, EyeOff
 } from 'lucide-vue-next'
 import api from '@/services/api'
 import DateInputPersian from '@/components/DateInputPersian.vue'
 import { formatDate } from '@/utils/date'
 
 const themeStore = useThemeStore()
+const router = useRouter()
+const goToAccount = (id) => router.push(`/finance/${id}`)
 const accounts = ref([])
 const message = ref('')
 const messageType = ref('success')
 const expandedAccounts = ref({})
+
+// ====== محدوده تحلیل: همه / انتخاب چندحسابه ======
+const selectedAccountIds = ref([])  // خالی = همه حساب‌های غیرمخفی
+const isScopeAll = computed(() => selectedAccountIds.value.length === 0)
+const scopeIds = computed(() => {
+  if (isScopeAll.value) return accounts.value.filter(a => !a.is_hidden).map(a => a.id)
+  return [...selectedAccountIds.value]
+})
+const toggleScopeAccount = (id) => {
+  const i = selectedAccountIds.value.indexOf(id)
+  if (i >= 0) selectedAccountIds.value.splice(i, 1)
+  else selectedAccountIds.value.push(id)
+}
+const resetScope = () => { selectedAccountIds.value = [] }
+const scopeLabel = computed(() => {
+  if (isScopeAll.value) return 'همه حساب‌های قابل‌مشاهده'
+  if (selectedAccountIds.value.length === 1) {
+    return accounts.value.find(a => a.id === selectedAccountIds.value[0])?.name || '۱ حساب'
+  }
+  return `${selectedAccountIds.value.length} حساب انتخاب شده`
+})
+// جمع موجودی محدوده (مخفی‌ها فقط اگر صراحتاً انتخاب شده باشند)
+const scopeTotalBalance = computed(() => {
+  const ids = new Set(scopeIds.value)
+  return accounts.value.filter(a => ids.has(a.id)).reduce((s, a) => s + (Number(a.current_balance) || 0), 0)
+})
+const hiddenCount = computed(() => accounts.value.filter(a => a.is_hidden).length)
 
 // دسته‌بندی‌های پیش‌فرض
 const categories = {
@@ -40,19 +70,19 @@ const categories = {
 // فرم‌ها و وضعیت‌ها
 const showAccountForm = ref(false)
 const editingAccount = ref(null)
-const accountForm = ref({ name: '', bank_name: '', sheba_number: '', current_balance: 0, register_date: new Date().toISOString().split('T')[0] })
+const accountForm = ref({ name: '', bank_name: '', sheba_number: '', current_balance: 0, is_hidden: false, register_date: new Date().toISOString().split('T')[0] })
 
 const showTransactionForm = ref(false)
 const editingTransaction = ref(null)
 const selectedAccountId = ref(null)
 const selectedAccount = ref(null)
-const transactionForm = ref({ 
-  transaction_date: new Date().toISOString().split('T')[0], 
-  transaction_type: 'withdrawal', 
-  amount: 0, 
-  category: '', 
-  items: '', 
-  description: '' 
+const transactionForm = ref({
+  transaction_date: new Date().toISOString().split('T')[0],
+  transaction_type: 'withdrawal',
+  amount: 0,
+  category: '',
+  items: '',
+  description: ''
 })
 
 const errors = ref({ amount: false, category: false, name: false })
@@ -64,7 +94,7 @@ const numberToPersianWords = (num) => {
   const teens = ['ده', 'یازده', 'دوازده', 'سیزده', 'چهارده', 'پانزده', 'شانزده', 'هفده', 'هجده', 'نوزده'];
   const tens = ['', '', 'بیست', 'سی', 'چهل', 'پنجاه', 'شصت', 'هفتاد', 'هشتاد', 'نود'];
   const hundreds = ['', 'صد', 'دویست', 'سیصد', 'چهارصد', 'پانصد', 'ششصد', 'هفتصد', 'هشتصد', 'نهصد'];
-  
+
   const convertChunk = (n) => {
     let res = '';
     if (n >= 100) { res += hundreds[Math.floor(n / 100)] + ' و '; n %= 100; }
@@ -80,7 +110,7 @@ const numberToPersianWords = (num) => {
   if (n >= 1000000) { result += convertChunk(Math.floor(n / 1000000)) + ' میلیون و '; n %= 1000000; }
   if (n >= 1000) { result += convertChunk(Math.floor(n / 1000)) + ' هزار و '; n %= 1000; }
   if (n > 0) { result += convertChunk(n); }
-  
+
   if (result.endsWith(' و ')) result = result.slice(0, -3);
   return result + ' تومان';
 }
@@ -108,13 +138,13 @@ const toggleTransactions = (id) => expandedAccounts.value[id] = !expandedAccount
 
 // ====== عملیات حساب (Account) ======
 const openNewAccount = () => {
-  accountForm.value = { name: '', bank_name: '', sheba_number: '', current_balance: 0, register_date: new Date().toISOString().split('T')[0] }
+  accountForm.value = { name: '', bank_name: '', sheba_number: '', current_balance: 0, is_hidden: false, register_date: new Date().toISOString().split('T')[0] }
   editingAccount.value = null
   showAccountForm.value = true
 }
 
 const openEditAccount = (acc) => {
-  accountForm.value = { ...acc, current_balance: acc.current_balance }
+  accountForm.value = { ...acc, current_balance: acc.current_balance, is_hidden: !!acc.is_hidden }
   editingAccount.value = acc
   showAccountForm.value = true
 }
@@ -122,7 +152,7 @@ const openEditAccount = (acc) => {
 const saveAccount = async () => {
   if (!accountForm.value.name.trim()) { errors.value.name = true; return; }
   try {
-    const payload = { ...accountForm.value, current_balance: parseNumber(accountForm.value.current_balance) };
+    const payload = { ...accountForm.value, current_balance: parseNumber(accountForm.value.current_balance), is_hidden: !!accountForm.value.is_hidden };
     if (editingAccount.value) {
       await api.put(`/finance/accounts/${editingAccount.value.id}`, payload)
       showToast('✅ حساب بروزرسانی شد')
@@ -139,13 +169,21 @@ const deleteAccount = async (id) => {
   try { await api.delete(`/finance/accounts/${id}`); showToast('🗑️ حساب حذف شد'); await fetchAccounts() } catch (e) {}
 }
 
+const toggleHidden = async (acc) => {
+  try {
+    await api.put(`/finance/accounts/${acc.id}`, { is_hidden: !acc.is_hidden })
+    showToast(acc.is_hidden ? '👁️ حساب قابل‌مشاهده شد' : '🙈 حساب مخفی شد (از جمع کل خارج شد)')
+    await fetchAccounts()
+  } catch (e) { showToast('❌ خطا در تغییر وضعیت', 'error') }
+}
+
 // ====== عملیات تراکنش (Transaction) ======
 const openNewTransaction = (acc) => {
   selectedAccount.value = acc; selectedAccountId.value = acc.id
   editingTransaction.value = null
-  transactionForm.value = { 
-    transaction_date: new Date().toISOString().split('T')[0], 
-    transaction_type: 'withdrawal', amount: 0, category: '', items: '', description: '' 
+  transactionForm.value = {
+    transaction_date: new Date().toISOString().split('T')[0],
+    transaction_type: 'withdrawal', amount: 0, category: '', items: '', description: ''
   }
   errors.value = { amount: false, category: false }
   showTransactionForm.value = true
@@ -197,7 +235,7 @@ const getCategoryColor = (catId) => {
 
 const formatMoney = (amount) => formatNumber(Math.abs(amount)) + ' تومان';
 
-// ====== گزارش چند-بازه‌ای ======
+// ====== گزارش چند-بازه‌ای (با محدوده حساب) ======
 const reportDays = ref(7)
 const reportData = ref(null)
 const reportLoading = ref(false)
@@ -213,7 +251,11 @@ async function fetchReport(days) {
   if (days) reportDays.value = days
   reportLoading.value = true
   try {
-    const res = await api.get(`/finance/recent-report?days=${reportDays.value}`)
+    let url = `/finance/recent-report?days=${reportDays.value}`
+    if (!isScopeAll.value && selectedAccountIds.value.length > 0) {
+      url += `&account_ids=${selectedAccountIds.value.join(',')}`
+    }
+    const res = await api.get(url)
     reportData.value = res.data
   } catch (e) {
     console.error('fetchReport error', e)
@@ -222,6 +264,11 @@ async function fetchReport(days) {
     reportLoading.value = false
   }
 }
+
+// با تغییر محدوده حساب، گزارش تازه شود
+watch(selectedAccountIds, () => { fetchReport() }, { deep: true })
+
+const accountNameById = (id) => accounts.value.find(a => a.id === id)?.name || `#${id}`
 
 const maxDailyAmount = computed(() => {
   if (!reportData.value?.daily_buckets) return 0
@@ -250,6 +297,13 @@ const reportRangeDisplay = computed(() => {
   const e = formatDate(reportData.value.range_end)
   return `از ${s} تا ${e}`
 })
+
+// برچسب زیر هر ستون: روزانه = شماره روز شمسی؛ هفتگی = شروع هفته شمسی
+function bucketSubLabel(bucket) {
+  if (!bucket) return ''
+  if (reportData.value?.bucket === 'week') return formatDate(bucket.date)
+  return shamsiDay(bucket.date)
+}
 
 // روز شمسی از تاریخ میلادی (فقط شماره روز)
 function shamsiDay(isoDate) {
@@ -307,7 +361,7 @@ onMounted(() => {
 
 <template>
   <div class="relative min-h-screen text-right p-3 sm:p-4 md:p-8 lg:p-10 overflow-hidden" dir="rtl">
-    
+
     <!-- ۱. پس‌زمینه ثابت مرکز مالی و بانکی مدرن (شفاف و 4K) -->
     <div class="fixed inset-0 z-0 bg-cover bg-center"
          style="background-image: url('https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=2560&q=90');">
@@ -324,14 +378,45 @@ onMounted(() => {
       </div>
 
       <!-- هدر صفحه -->
-      <div class="flex items-center justify-between p-6 rounded-3xl bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl">
+      <div class="flex flex-wrap items-center justify-between gap-3 p-6 rounded-3xl bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl">
         <div>
           <h1 class="text-3xl font-black mb-1 drop-shadow-md">مدیریت امور مالی</h1>
           <p class="text-xs opacity-70">کنترل موجودی، حساب‌های بانکی و تراکنش‌ها</p>
+          <p class="text-xs mt-1.5 font-bold text-emerald-300">محدوده تحلیل: {{ scopeLabel }}</p>
         </div>
-        <button @click="openNewAccount" class="px-5 py-3 rounded-2xl font-bold text-white transition flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95" :style="{ background: 'var(--accent)' }">
-          <Plus class="w-5 h-5" /> تعریف حساب جدید
-        </button>
+        <div class="flex items-center gap-2">
+          <div class="px-4 py-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-left">
+            <p class="text-[10px] opacity-70 font-bold">جمع محدوده</p>
+            <p class="text-lg font-black text-emerald-300">{{ formatMoney(scopeTotalBalance) }}</p>
+          </div>
+          <button @click="openNewAccount" class="px-5 py-3 rounded-2xl font-bold text-white transition flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95" :style="{ background: 'var(--accent)' }">
+            <Plus class="w-5 h-5" /> تعریف حساب جدید
+          </button>
+        </div>
+      </div>
+
+      <!-- 🔍 انتخاب محدوده حساب‌ها برای تحلیل -->
+      <div class="glass-card p-3 sm:p-4 rounded-2xl border border-white/10 shadow-xl space-y-2">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-black opacity-80">🎯 حساب‌های داخل تحلیل</h2>
+          <button v-if="!isScopeAll" @click="resetScope" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 transition">بازنشانی به همه</button>
+        </div>
+        <div class="flex flex-wrap gap-1.5 sm:gap-2">
+          <button @click="resetScope"
+                  class="px-3 py-1.5 rounded-xl text-xs font-black border transition"
+                  :style="isScopeAll ? { background: '#9333ea', color: '#fff', borderColor: '#9333ea' } : { borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }">
+            همه ({{ accounts.filter(a => !a.is_hidden).length }})
+          </button>
+          <button v-for="acc in accounts" :key="acc.id"
+                  @click="toggleScopeAccount(acc.id)"
+                  class="px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5"
+                  :style="selectedAccountIds.includes(acc.id)
+                    ? { background: '#0e7490', color: '#fff', borderColor: '#0e7490' }
+                    : { borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }">
+            <span v-if="acc.is_hidden">🙈</span> {{ acc.name }}
+          </button>
+        </div>
+        <p v-if="hiddenCount > 0" class="text-[10px] opacity-50">🙈 {{ hiddenCount }} حساب مخفی از «همه» بیرون است؛ برای تحلیل صریح انتخابش کن.</p>
       </div>
 
       <!-- 📊 گزارش مدیریت مالی (همیشه باز، الگو از داشبورد) -->
@@ -354,7 +439,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <p class="text-[11px] opacity-60 -mt-3">{{ reportRangeDisplay }}</p>
+        <p class="text-[11px] opacity-60 -mt-3">{{ reportRangeDisplay }} — {{ scopeLabel }}</p>
 
         <!-- حالت loading -->
         <div v-if="reportLoading && !reportData" class="flex items-center justify-center py-10 opacity-60">
@@ -404,8 +489,10 @@ onMounted(() => {
             <!-- نمودار میله‌ای Stacked با روز جاری طلایی (مثل داشبورد) - ۲/۳ عرض -->
             <div class="lg:col-span-2 space-y-2">
               <h3 class="text-sm font-black flex items-center gap-2 opacity-80">
-                نمودار روزانه واریز و برداشت
-                <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-bold">هفته شمسی</span>
+                {{ reportData.bucket === 'week' ? 'نمودار هفتگی واریز و برداشت' : 'نمودار روزانه واریز و برداشت' }}
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-bold">
+                  {{ reportDays === 7 ? 'هفته شمسی' : reportDays === 30 ? 'ماه اخیر' : '۳ ماه اخیر (هفتگی)' }}
+                </span>
               </h3>
               <div class="rounded-2xl bg-black/30 border border-white/5 p-3 sm:p-4">
                 <!-- خط میانگین (اگه داده داشته باشیم) -->
@@ -416,13 +503,13 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <!-- Stacked: هر روز یک ستون (سبز=واریز بالا، قرمز=برداشت پایین) - شروع شنبه از راست -->
-                <div class="h-40 sm:h-44 flex items-end justify-between gap-1 sm:gap-1.5 pt-6 px-1 relative" dir="rtl">
+                <!-- Stacked: هر بازه یک ستون (سبز=واریز بالا، قرمز=برداشت پایین) - شروع شنبه از راست -->
+                <div class="h-40 sm:h-44 flex items-end justify-between gap-1 sm:gap-1.5 pt-6 px-1 relative overflow-x-auto" dir="rtl">
                   <div v-for="(d, idx) in reportData.daily_buckets" :key="idx"
-                       class="flex-1 h-full flex flex-col items-center justify-end cursor-pointer group relative"
+                       class="flex-1 h-full min-w-[14px] flex flex-col items-center justify-end cursor-pointer group relative"
                        @click="openReportDay(d)"
                        :title="`${d.weekday} (${formatDate(d.date)}) - واریز: ${formatNumber(d.deposit)} | برداشت: ${formatNumber(d.withdraw)}`">
-                    <!-- فضای میله + نام روز -->
+                    <!-- فضای میله + نام بازه -->
                     <div class="w-full max-w-[36px] h-full flex flex-col items-center justify-end">
                       <!-- میله Stacked: برداشت (قرمز، پایین) + واریز (سبز، بالا) -->
                       <div class="w-full flex flex-col-reverse items-stretch overflow-hidden rounded-t-md ring-1 transition-all"
@@ -439,14 +526,14 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <!-- محور x: نام روزها (شنبه راست تا جمعه چپ) -->
-                <div class="flex items-start gap-1 mt-2" dir="rtl">
-                  <div v-for="(d, idx) in reportData.daily_buckets" :key="idx" class="flex-1 text-center min-w-0">
+                <!-- محور x: نام بازه‌ها (شنبه راست تا جمعه چپ) -->
+                <div class="flex items-start gap-1 mt-2 overflow-x-auto" dir="rtl">
+                  <div v-for="(d, idx) in reportData.daily_buckets" :key="idx" class="flex-1 text-center min-w-[14px]">
                     <div class="text-[9px] sm:text-[10px] font-bold truncate"
                          :class="idx === todayBucketIndex ? 'text-amber-400' : 'opacity-50'">
                       {{ d.weekday }}
                     </div>
-                    <div class="text-[9px] opacity-30">{{ shamsiDay(d.date) }}</div>
+                    <div class="text-[9px] opacity-30 truncate">{{ bucketSubLabel(d) }}</div>
                   </div>
                 </div>
 
@@ -500,10 +587,28 @@ onMounted(() => {
               </div>
             </div>
           </div>
+
+          <!-- تفکیک حساب‌ها در بازه (تحلیل انتخابی) -->
+          <div v-if="reportData.account_breakdown && reportData.account_breakdown.length > 0" class="space-y-2">
+            <h3 class="text-sm font-black flex items-center gap-2 opacity-80">
+              <Wallet class="w-4 h-4 text-cyan-400" /> سهم حساب‌ها در این بازه
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div v-for="ab in reportData.account_breakdown" :key="ab.account_id"
+                   class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-black/30 border border-white/5 text-xs">
+                <span class="font-black truncate" :style="{ color: 'var(--text-primary)' }">{{ accountNameById(ab.account_id) }}</span>
+                <span class="flex items-center gap-2 font-bold shrink-0">
+                  <span class="text-emerald-300">+{{ formatNumber(ab.deposit) }}</span>
+                  <span class="text-rose-300">−{{ formatNumber(ab.withdraw) }}</span>
+                  <span class="opacity-50">({{ ab.count }})</span>
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 🔍 Popup مرکزی تفکیک روزانه (وقتی روی میله کلیک شد) -->
+      <!-- 🔍 Popup مرکزی تفکیک بازه (وقتی روی میله کلیک شد) -->
       <Teleport to="body">
         <Transition name="popup">
           <div v-if="selectedReportDay"
@@ -543,7 +648,7 @@ onMounted(() => {
                 </div>
                 <div class="flex items-center justify-between p-2.5 rounded-xl border"
                      :class="(selectedReportDay.deposit - selectedReportDay.withdraw) >= 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-amber-500/10 border-amber-500/20'">
-                  <span class="text-xs font-bold">تراز روز</span>
+                  <span class="text-xs font-bold">تراز {{ reportData?.bucket === 'week' ? 'هفته' : 'روز' }}</span>
                   <span class="font-black text-xs dir-ltr"
                         :class="(selectedReportDay.deposit - selectedReportDay.withdraw) >= 0 ? 'text-blue-300' : 'text-amber-300'">
                     {{ (selectedReportDay.deposit - selectedReportDay.withdraw) >= 0 ? '+' : '-' }}{{ formatMoney(Math.abs(selectedReportDay.deposit - selectedReportDay.withdraw)) }}
@@ -562,10 +667,11 @@ onMounted(() => {
         <div class="rounded-3xl p-6 border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl flex items-center gap-4">
           <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><Wallet class="w-6 h-6" /></div>
           <div>
-            <p class="text-xs opacity-60">مجموع کل دارایی شما</p>
+            <p class="text-xs opacity-60">مجموع دارایی قابل‌مشاهده</p>
             <p class="text-2xl font-black text-emerald-400">
-              {{ formatMoney(accounts.reduce((sum, a) => sum + a.current_balance, 0)) }}
+              {{ formatMoney(accounts.filter(a => !a.is_hidden).reduce((sum, a) => sum + (Number(a.current_balance) || 0), 0)) }}
             </p>
+            <p v-if="hiddenCount > 0" class="text-[10px] opacity-50 font-bold mt-0.5">🙈 {{ hiddenCount }} حساب مخفی بیرون از جمع</p>
           </div>
         </div>
 
@@ -596,7 +702,8 @@ onMounted(() => {
 
       <div v-else class="grid grid-cols-2 gap-2 sm:gap-4">
         <div v-for="(acc, idx) in accounts" :key="acc.id"
-             class="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl transition-all duration-300 hover:scale-[1.01] hover:shadow-purple-500/20"
+             class="relative rounded-2xl overflow-hidden border shadow-2xl transition-all duration-300 hover:scale-[1.01] hover:shadow-purple-500/20"
+             :class="acc.is_hidden ? 'border-dashed border-amber-400/40 opacity-90' : 'border-white/10'"
              :style="{
                background: idx % 2 === 0
                  ? 'linear-gradient(135deg, #1e3a8a 0%, #4c1d95 50%, #831843 100%)'
@@ -607,15 +714,15 @@ onMounted(() => {
           <div class="absolute top-0 left-0 w-32 h-32 bg-white/10 rounded-full -translate-x-12 -translate-y-12 blur-2xl"></div>
           <div class="absolute bottom-0 right-0 w-40 h-40 bg-white/5 rounded-full translate-x-16 translate-y-16 blur-3xl"></div>
 
-          <!-- هدر کارت: لوگو/شماره کارت (از روی شبا یا ID) -->
-          <div class="relative p-2.5 sm:p-5 flex items-center justify-between">
+          <!-- هدر کارت: لوگو/شماره کارت (از روی شبا یا ID) — کلیک = صفحه اختصاصی -->
+          <div class="relative p-2.5 sm:p-5 flex items-center justify-between cursor-pointer" @click="goToAccount(acc.id)">
             <div class="flex items-center gap-2 sm:gap-3 min-w-0">
               <div class="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center shadow-inner border border-white/20 flex-shrink-0">
                 <CreditCard class="w-4 h-4 sm:w-6 sm:h-6 text-amber-300" />
               </div>
               <div class="min-w-0">
                 <p class="text-[8px] sm:text-[10px] opacity-70 font-bold uppercase tracking-wider">حساب</p>
-                <h3 class="text-[11px] sm:text-base font-black truncate max-w-[90px] sm:max-w-[140px]">{{ acc.name }}</h3>
+                <h3 class="text-[11px] sm:text-base font-black truncate max-w-[90px] sm:max-w-[140px]">{{ acc.name }} <span v-if="acc.is_hidden" title="موجودی مخفی">🙈</span></h3>
               </div>
             </div>
             <div class="text-left min-w-0">
@@ -626,7 +733,7 @@ onMounted(() => {
 
           <!-- بدنه: موجودی + شماره شبا -->
           <div class="relative px-2.5 sm:px-5 pb-2 sm:pb-3">
-            <p class="text-[8px] sm:text-[10px] opacity-60 font-bold mb-0.5">موجودی فعلی</p>
+            <p class="text-[8px] sm:text-[10px] opacity-60 font-bold mb-0.5">موجودی فعلی <span v-if="acc.is_hidden" class="text-amber-300">(مخفی از جمع کل)</span></p>
             <p class="text-sm sm:text-2xl font-black mb-1 sm:mb-2 truncate" :class="acc.current_balance >= 0 ? 'text-emerald-300' : 'text-rose-300'">
               {{ formatMoney(acc.current_balance) }}
             </p>
@@ -652,22 +759,34 @@ onMounted(() => {
 
           <!-- نوار دکمه‌ها -->
           <div class="relative px-1.5 sm:px-4 py-1.5 sm:py-3 bg-black/30 backdrop-blur-md flex items-center gap-1 sm:gap-2">
-            <button @click="openNewTransaction(acc)"
+            <button @click.stop="goToAccount(acc.id)"
+                    class="flex-1 py-1 sm:py-2 rounded-md sm:rounded-lg bg-blue-500/90 hover:bg-blue-400 text-white text-[9px] sm:text-xs font-black flex items-center justify-center gap-0.5 sm:gap-1 transition shadow-md"
+                    title="باز کردن صفحه اختصاصی حساب">
+              <span class="truncate">📄 صفحه حساب</span>
+            </button>
+            <button @click.stop="openNewTransaction(acc)"
                     class="flex-1 py-1 sm:py-2 rounded-md sm:rounded-lg bg-emerald-500/90 hover:bg-emerald-400 text-white text-[9px] sm:text-xs font-black flex items-center justify-center gap-0.5 sm:gap-1 transition shadow-md"
                     title="تراکنش جدید">
               <Plus class="w-3 h-3 sm:w-4 sm:h-4" /> <span class="truncate">تراکنش</span>
             </button>
-            <button @click="toggleTransactions(acc.id)"
+            <button @click.stop="toggleTransactions(acc.id)"
                     class="px-1.5 sm:px-3 py-1 sm:py-2 rounded-md sm:rounded-lg bg-white/10 hover:bg-white/20 text-white text-[9px] sm:text-xs font-bold flex items-center justify-center gap-0.5 sm:gap-1 transition"
                     :title="expandedAccounts[acc.id] ? 'بستن تراکنش‌ها' : 'مشاهده تراکنش‌ها'">
               <ChevronUp v-if="expandedAccounts[acc.id]" class="w-3 h-3 sm:w-4 sm:h-4" />
               <ChevronDown v-else class="w-3 h-3 sm:w-4 sm:h-4" />
               <span class="hidden sm:inline">{{ expandedAccounts[acc.id] ? 'بستن' : 'لیست' }}</span>
             </button>
-            <button @click="openEditAccount(acc)" class="p-1 sm:p-2 rounded-md sm:rounded-lg bg-white/10 hover:bg-white/20 text-white transition" title="ویرایش">
+            <button @click.stop="toggleHidden(acc)"
+                    class="p-1 sm:p-2 rounded-md sm:rounded-lg transition"
+                    :class="acc.is_hidden ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-white/10 hover:bg-white/20 text-white'"
+                    :title="acc.is_hidden ? 'خارج کردن از حالت مخفی' : 'مخفی کردن موجودی از جمع کل'">
+              <EyeOff v-if="acc.is_hidden" class="w-3 h-3 sm:w-4 sm:h-4" />
+              <Eye v-else class="w-3 h-3 sm:w-4 sm:h-4" />
+            </button>
+            <button @click.stop="openEditAccount(acc)" class="p-1 sm:p-2 rounded-md sm:rounded-lg bg-white/10 hover:bg-white/20 text-white transition" title="ویرایش">
               <Edit3 class="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
-            <button @click="deleteAccount(acc.id)" class="p-1 sm:p-2 rounded-md sm:rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition" title="حذف">
+            <button @click.stop="deleteAccount(acc.id)" class="p-1 sm:p-2 rounded-md sm:rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition" title="حذف">
               <Trash2 class="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </div>
@@ -737,6 +856,11 @@ onMounted(() => {
                      class="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-white/10 bg-black/40 outline-none text-base sm:text-lg font-bold text-emerald-400 focus:ring-2 focus:ring-emerald-500/50" />
               <p class="text-[10px] mt-1 text-emerald-300 font-medium pr-1 truncate">{{ numberToPersianWords(parseNumber(accountForm.current_balance)) }}</p>
             </div>
+            <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition"
+                   :class="accountForm.is_hidden ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-black/40'">
+              <input type="checkbox" v-model="accountForm.is_hidden" class="w-4 h-4 accent-amber-400" />
+              <span class="text-xs font-bold">🙈 موجودی مخفی <span class="opacity-60 font-medium">— در جمع کل و تراز لحاظ نشود</span></span>
+            </label>
             <div>
               <label class="text-xs mb-1.5 block opacity-70 font-bold">تاریخ ثبت/افتتاح</label>
               <DateInputPersian v-model="accountForm.register_date" />

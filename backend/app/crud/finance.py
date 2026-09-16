@@ -140,22 +140,30 @@ async def update_transaction(db: AsyncSession, trans_id: int, owner_id: int, tra
 
 
 # ====== گزارش چند-بازه‌ای برای صفحه مالی ======
-async def get_recent_finance_report(db: AsyncSession, owner_id: int, days: int = 7):
+async def get_recent_finance_report(db: AsyncSession, owner_id: int, days: int = 7, account_ids: list | None = None):
     """
     گزارش تراکنش‌های بازه اخیر.
     days فقط 7/30/90 — در غیر این صورت 7.
-    خروجی: summary + daily_buckets + category_breakdown
+    account_ids: لیست id حساب‌های داخل تحلیل؛ None یعنی همه حساب‌های غیرمخفی.
+    حساب مخفی (is_hidden) همیشه از جمع‌ها بیرون است مگر صراحتاً انتخاب شود.
+    باکت‌بندی: 7 و 30 روزانه؛ 90 هفتگی (شنبه تا جمعه).
+    خروجی: summary + buckets + category_breakdown + account_breakdown
     """
     if days not in (7, 30, 90):
         days = 7
 
     today = datetime.utcnow().date()
-    # برای هماهنگی با داشبورد: هفته شمسی از شنبه شروع می‌شه
-    # weekday: Mon=0..Sun=6؛ شنبه در شمسی = روز 5 (Sat) میلادی
-    # اگه today = چهارشنبه (Wed, weekday=2)، فاصله تا شنبه = (2 - 5) % 7 = 4 روز به عقب
-    # اما اگه امروز شنبه (Sat=5)، فاصله = 0
     days_since_saturday = (today.weekday() - 5) % 7
     start_date = today - timedelta(days=days_since_saturday)
+
+    acc_res = await db.execute(select(Account.id, Account.is_hidden).where(Account.owner_id == owner_id))
+    hidden_ids = {row[0] for row in acc_res.all() if row[1]}
+    owned_ids = {row[0] for row in (await db.execute(select(Account.id).where(Account.owner_id == owner_id))).all()}
+
+    if account_ids:
+        scope_ids = {i for i in account_ids if i in owned_ids}
+    else:
+        scope_ids = owned_ids - hidden_ids
 
     res = await db.execute(
         select(Transaction).where(
@@ -164,37 +172,66 @@ async def get_recent_finance_report(db: AsyncSession, owner_id: int, days: int =
     )
     all_tx = res.scalars().all()
 
+    bucket_kind = "week" if days == 90 else "day"
+    buckets = OrderedDict()
+    if bucket_kind == "day":
+        for i in range(days):
+            d = start_date + timedelta(days=i)
+            buckets[d.isoformat()] = {
+                "date": d.isoformat(),
+                "weekday": _WEEKDAY_FROM_SAT.get(d.weekday(), ""),
+                "deposit": 0.0,
+                "withdraw": 0.0,
+            }
+    else:
+        for w in range(13):
+            d = start_date + timedelta(days=7 * w)
+            buckets[d.isoformat()] = {
+                "date": d.isoformat(),
+                "weekday": f"هفته {w + 1}",
+                "deposit": 0.0,
+                "withdraw": 0.0,
+            }
+
+    def bucket_key(d_iso: str):
+        if bucket_kind == "day":
+            return d_iso if d_iso in buckets else None
+        try:
+            dt = datetime.strptime(d_iso, "%Y-%m-%d").date()
+        except Exception:
+            return None
+        delta = (dt - start_date).days
+        if delta < 0 or delta >= 91:
+            return None
+        return (start_date + timedelta(days=(delta // 7) * 7)).isoformat()
+
     deposit_total = 0.0
     withdraw_total = 0.0
-    daily_buckets = OrderedDict()
     cat_buckets = {}  # فقط برداشت برای donut
-
-    for i in range(days):
-        d = start_date + timedelta(days=i)
-        daily_buckets[d.isoformat()] = {
-            "date": d.isoformat(),
-            "weekday": _WEEKDAY_FROM_SAT.get(d.weekday(), ""),
-            "deposit": 0.0,
-            "withdraw": 0.0,
-        }
-
+    acc_buckets = {}
     tx_count = 0
     for t in all_tx:
+        if t.account_id not in scope_ids:
+            continue
         dt = _parse_transaction_date(getattr(t, "transaction_date", None))
         if not dt:
             continue
-        d_iso = dt.date().isoformat()
-        if d_iso not in daily_buckets:
+        key = bucket_key(dt.date().isoformat())
+        if not key:
             continue
         tx_count += 1
         amount = float(t.amount or 0)
         ttype = t.transaction_type
+        entry = acc_buckets.setdefault(t.account_id, {"account_id": t.account_id, "deposit": 0.0, "withdraw": 0.0, "count": 0})
+        entry["count"] += 1
         if ttype == "deposit":
-            daily_buckets[d_iso]["deposit"] += amount
+            buckets[key]["deposit"] += amount
             deposit_total += amount
+            entry["deposit"] += amount
         elif ttype == "withdrawal":
-            daily_buckets[d_iso]["withdraw"] += amount
+            buckets[key]["withdraw"] += amount
             withdraw_total += amount
+            entry["withdraw"] += amount
             cat = (t.category or "other_out")
             cat_buckets[cat] = cat_buckets.get(cat, 0.0) + amount
 
@@ -216,10 +253,14 @@ async def get_recent_finance_report(db: AsyncSession, owner_id: int, days: int =
             "percent": round(pct, 1),
         })
 
+    account_breakdown = sorted(acc_buckets.values(), key=lambda e: -(e["deposit"] + e["withdraw"]))
+
     return {
         "days": days,
+        "bucket": bucket_kind,
         "range_start": start_date.isoformat(),
         "range_end": today.isoformat(),
+        "scope_account_ids": sorted(scope_ids),
         "summary": {
             "deposit_total": deposit_total,
             "withdraw_total": withdraw_total,
@@ -227,6 +268,7 @@ async def get_recent_finance_report(db: AsyncSession, owner_id: int, days: int =
             "top_category": top_category,
             "transaction_count": tx_count,
         },
-        "daily_buckets": list(daily_buckets.values()),
+        "daily_buckets": list(buckets.values()),
         "category_breakdown": category_breakdown,
+        "account_breakdown": account_breakdown,
     }

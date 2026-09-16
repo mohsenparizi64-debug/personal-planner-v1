@@ -160,6 +160,7 @@ class Account(Base, TimestampMixin):
     bank_name = Column(String, nullable=True)
     sheba_number = Column(String, nullable=True)
     current_balance = Column(Float, default=0)
+    is_hidden = Column(Boolean, default=False)
     register_date = Column(Date, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User")

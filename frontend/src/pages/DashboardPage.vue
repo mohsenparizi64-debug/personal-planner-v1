@@ -53,11 +53,17 @@ const greetingMessage = computed(() => {
   return 'شب به خیر! 🌙'
 })
 
+// تاریخ امروز محلی (تهران) — آینه getTodayISOLocal میزکار؛ مرجع واحد هر دو صفحه
+const getLocalToday = () => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
 const fetchDashboard = async () => {
   try {
     isLoading.value = true
     const [dashRes, skillsRes] = await Promise.all([
-      api.get('/dashboard/overview'),
+      api.get(`/dashboard/overview?today=${getLocalToday()}`),
       api.get('/skills/_stats/summary').catch(() => ({ data: null }))
     ])
     dashboardData.value = dashRes.data
@@ -160,9 +166,8 @@ const todayIndexInOrdered = computed(() => {
   const data = orderedWeeklyActivity.value
   if (data.length === 0) return -1
 
-  // تاریخ امروز به فرمت YYYY-MM-DD
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  // تاریخ امروز محلی (نه UTC) — همگام با بازه‌های سرور که با ?today ساخته شدن
+  const todayStr = getLocalToday()
 
   // اول: مقایسه مستقیم با فیلد date
   const idx = data.findIndex(d => d.date === todayStr)
